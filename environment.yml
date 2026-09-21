@@ -1,0 +1,15 @@
+name: kamp-contest
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scikit-learn
+  - lightgbm
+  - shap
+  - matplotlib
+  - seaborn
+  - jupyter
+  - ipykernel
+  - openpyxl

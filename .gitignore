@@ -1,0 +1,26 @@
+# 데이터 (용량 큼, 각자 KAMP에서 받아 data/ 에 넣기)
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# 결과물 (run_all.py 로 재생성)
+outputs/**
+!outputs/.gitkeep
+
+# 개인 참고 자료 (이름·학번 포함)
+ex/
+
+# 모델 가중치
+*.pt
+*.pkl
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# 환경 / 에디터
+.env
+.vscode/
+.DS_Store
+Thumbs.db
