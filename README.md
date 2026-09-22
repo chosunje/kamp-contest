@@ -13,11 +13,13 @@ kamp-contest/
 │   ├── eda.py          # EDA 그림 (복제일/고유일 분리)
 │   ├── eda3.py         # 기저부하·피크 조건 통계
 │   ├── pattern.py      # 날짜별 전력곡선 패턴 ID
-│   └── baseline.py     # 베이스라인 4종 시간순 롤링 평가
+│   ├── baseline.py     # 베이스라인 4종 시간순 롤링 평가 (복제일/고유일 분리)
+│   └── features.py     # 모델 입력 피처 생성 (피처목록.txt 기준)
 ├── outputs/
 │   ├── eda/            # 그림 01 to 07, captions.txt, clean_preview.csv
 │   ├── daily_pattern.csv
-│   └── baseline_results.csv
+│   ├── baseline_results.csv
+│   └── features.csv
 ├── run_all.py          # 전체 파이프라인 실행
 ├── environment.yml     # conda 환경 정의
 └── README.md
@@ -36,7 +38,7 @@ conda activate kamp-contest
 python run_all.py
 ```
 
-전처리 → EDA 시각화 → 통계 → 패턴 분석 → 베이스라인 평가 순으로 실행되며, 결과물은 `outputs/`에 저장됩니다.
+전처리 → EDA 시각화 → 통계 → 패턴 분석 → 베이스라인 평가 → 피처 생성 순으로 실행되며, 결과물은 `outputs/`에 저장됩니다.
 단계별로 실행하려면 `python src/<스크립트>.py` 를 사용합니다. 어느 폴더에서 실행해도 경로는 저장소 기준으로 잡힙니다.
 
 ## 주요 라이브러리

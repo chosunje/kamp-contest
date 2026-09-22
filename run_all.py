@@ -14,6 +14,7 @@ STEPS = [
     ('기저부하·피크 통계', 'eda3.py'),
     ('반복 패턴 분석', 'pattern.py'),
     ('베이스라인 평가', 'baseline.py'),
+    ('피처 생성', 'features.py'),
 ]
 
 
