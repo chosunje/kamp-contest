@@ -1,4 +1,4 @@
-날짜,day,m,prod,ppl,tmean,pmean,pmax,pid,cnt,same_prev
+﻿날짜,day,m,prod,ppl,tmean,pmean,pmax,pid,cnt,same_prev
 20210101,5,1,0,0.0,-1.1958333333333333,46.25,107,0,1,False
 20210102,6,1,0,0.0,-0.17499999999999996,46.333333333333336,107,1,7,False
 20210103,7,1,0,0.0,-0.4791666666666667,22.875,25,2,2,False
