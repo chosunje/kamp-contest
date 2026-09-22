@@ -8,7 +8,7 @@ plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 OUT = 'outputs/eda/'
 
-df = pd.read_csv('data/okm_augumented_2021.csv')
+df = pd.read_csv('dataset/okm_augumented_2021.csv')
 df['시간'] = df.groupby('날짜').cumcount()          # 손상된 시간 복구 (행 순서)
 df['dt'] = pd.to_datetime(df['날짜'].astype(str)) + pd.to_timedelta(df['시간'], unit='h')
 df = df.sort_values('dt').reset_index(drop=True)
