@@ -1,6 +1,7 @@
 """EDA 3차: 생산량=0 구간 전력 구조, 피크와 생산/인원 관계."""
 import pandas as pd, numpy as np
-df = pd.read_csv('outputs/eda/clean_preview.csv', parse_dates=['dt'])
+from preprocess import load
+df = load()
 t = 'target'
 z = df[df.생산량 == 0]
 print('생산량=0 행수', len(z), '전력 분위수\n', z[t].quantile([.1,.25,.5,.75,.9]).to_dict())

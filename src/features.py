@@ -1,0 +1,86 @@
+"""피처 생성 (피처목록.txt 기준). 예측 마감: 전날 24시 → 당일 전력은 쓰지 않고 lag 24 이상만 사용.
+당일 생산계획·기상·휴무 여부는 전날 알 수 있다고 가정."""
+import numpy as np, pandas as pd
+from preprocess import load, ROOT
+
+OUT = ROOT / 'outputs' / 'features.csv'
+Q15 = ['15분', '30분', '45분', '60분']
+PROD_CAP = 800   # 생산량 약 800에서 전력 포화
+COOL_BASE = 22   # 가동 시간 기준 22°C 이상에서 전력 상승
+
+A = ['hour', 'dow', 'is_weekend', 'is_off', 'after_off', 'shift', 'is_transition', 'month']
+B = ['prod', 'prod_cap', 'prod_log', 'prod_zero', 'day_prod', 'day_prod_hours',
+     'prod_prev', 'prod_next', 'prod_diff']
+C = ['cool', 'temp', 'humid', 'thi', 'wind', 'rain']
+D = ['lag24', 'lag168', 'lag336', 'lag_week_mean4', 'lag_prev_op',
+     'prev_day_mean', 'prev_day_max', 'last_week_day_mean', 'last_week_day_max']
+FEATURES = {'full': A + B + C + D, 'no_plan': A + D}
+META = ['dt', '날짜', 'target', 'target_max15', 'is_clone', 'is_off', 'is_stop', 'is_corrupt', 'train_ok']
+
+
+def build() -> pd.DataFrame:
+    df = load()
+    f = pd.DataFrame(index=df.index)
+    day = df.groupby('날짜')
+
+    # A. 달력
+    f['hour'] = df['시간']
+    f['dow'] = df['day']
+    f['is_weekend'] = (df['day'] >= 6).astype(int)
+    f['is_off'] = df['is_off'].astype(int)
+    off_day = day['is_off'].first()
+    f['after_off'] = df['날짜'].map(off_day.shift(1).fillna(False)).astype(int)
+    f['shift'] = np.select([df['시간'] == 12, df['시간'].between(8, 19)], [1, 2], 0)  # 0 야간, 1 점심, 2 주간
+    f['is_transition'] = df['시간'].isin([7, 12, 17]).astype(int)
+    f['month'] = df['m']
+
+    # B. 생산계획 (당일 안에서만 앞뒤 시간 참조)
+    f['prod'] = df['생산량']
+    f['prod_cap'] = df['생산량'].clip(upper=PROD_CAP)
+    f['prod_log'] = np.log1p(df['생산량'])
+    f['prod_zero'] = (df['생산량'] == 0).astype(int)
+    f['day_prod'] = day['생산량'].transform('sum')
+    f['day_prod_hours'] = day['생산량'].transform(lambda s: (s > 0).sum())
+    f['prod_prev'] = day['생산량'].shift(1)
+    f['prod_next'] = day['생산량'].shift(-1)
+    f['prod_diff'] = f['prod'] - f['prod_prev']
+
+    # C. 기상 (실측을 예보로 가정)
+    f['cool'] = (df['기온'] - COOL_BASE).clip(lower=0)
+    f['temp'] = df['기온']
+    f['humid'] = df['습도']
+    f['thi'] = 0.81 * df['기온'] + 0.01 * df['습도'] * (0.99 * df['기온'] - 14.3) + 46.3
+    f['wind'] = df['풍속']
+    f['rain'] = df['강수량']
+
+    # D. 과거 전력: 휴무일·가동 중단 값은 결측 처리 후 참조 (행 = 1시간, 누락 없이 연속)
+    p = df['target'].where(~df['is_off'] & ~df['is_stop'])
+    f['lag24'] = p.shift(24)
+    f['lag168'] = p.shift(168)
+    f['lag336'] = p.shift(336)
+    f['lag_week_mean4'] = pd.concat([p.shift(168 * k) for k in range(1, 5)], axis=1).mean(axis=1)
+    grid = p.to_frame('p').assign(날짜=df['날짜'], h=df['시간']).pivot(index='날짜', columns='h', values='p')
+    prev_op = grid.shift(1).ffill()   # 전날까지 중 가장 최근 가동일의 같은 시각 값
+    f['lag_prev_op'] = prev_op.stack().reindex(pd.MultiIndex.from_arrays([df['날짜'], df['시간']])).values
+    dstat = p.groupby(df['날짜']).agg(['mean', 'max'])
+    f['prev_day_mean'] = df['날짜'].map(dstat['mean'].shift(1))
+    f['prev_day_max'] = df['날짜'].map(dstat['max'].shift(1))
+    f['last_week_day_mean'] = df['날짜'].map(dstat['mean'].shift(7))
+    f['last_week_day_max'] = df['날짜'].map(dstat['max'].shift(7))
+
+    meta = df[['dt', '날짜', 'target', 'is_clone', 'is_off', 'is_stop', 'is_corrupt', 'train_ok']].copy()
+    meta['target_max15'] = df[Q15].max(axis=1)
+    return pd.concat([meta[META], f.drop(columns='is_off')], axis=1)
+
+
+if __name__ == '__main__':
+    X = build()
+    X.to_csv(OUT, index=False, encoding='utf-8-sig')
+    print(f'{len(X)}행, 피처 full {len(FEATURES["full"])}개 / no_plan {len(FEATURES["no_plan"])}개 → {OUT}')
+    tr = X[X.train_ok]
+    na = tr[FEATURES['full']].isna().mean()
+    print('결측 비율(학습 가능 행 기준, 0 초과만)\n', na[na > 0].round(3).to_string())
+    r = tr[FEATURES['full'] + ['target']].corr('spearman')['target'].drop('target')
+    print('타깃과 스피어만 상관 (고유일, 절댓값 상위 12)')
+    ru = X[X.train_ok & ~X.is_clone][FEATURES['full'] + ['target']].corr('spearman')['target'].drop('target')
+    print(ru.reindex(ru.abs().sort_values(ascending=False).index).head(12).round(2).to_string())
