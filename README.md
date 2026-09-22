@@ -1,16 +1,24 @@
 # KAMP 경진대회 프로젝트
 
+과제 ⑤ 제조 생산데이터 기반 전력사용량 예측 및 최대피크 위험조건 분석
+
 ## 폴더 구조
 
 ```
 kamp-contest/
-├── data/
-│   ├── 1/ ~ 5/         # 과제 데이터셋 1~5
-│   └── raw/            # 원본 데이터 (수정하지 않음)
-├── notebooks/          # EDA 및 실험용 Jupyter 노트북
-├── src/                # 재사용 가능한 소스 코드 (전처리, 모델, 평가 등)
-├── outputs/            # 모델, 예측 결과, 그림, SHAP 결과
-├── run_all.py          # 전체 파이프라인 실행 스크립트
+├── dataset/
+│   └── okm_augumented_2021.csv   # 원본 데이터 (수정하지 않음)
+├── src/
+│   ├── preprocess.py   # 원본 로드·정제·플래그(복제일/휴무일/가동중단). 모든 단계의 공통 입구
+│   ├── eda.py          # EDA 그림 (복제일/고유일 분리)
+│   ├── eda3.py         # 기저부하·피크 조건 통계
+│   ├── pattern.py      # 날짜별 전력곡선 패턴 ID
+│   └── baseline.py     # 베이스라인 4종 시간순 롤링 평가
+├── outputs/
+│   ├── eda/            # 그림 01 to 07, captions.txt, clean_preview.csv
+│   ├── daily_pattern.csv
+│   └── baseline_results.csv
+├── run_all.py          # 전체 파이프라인 실행
 ├── environment.yml     # conda 환경 정의
 └── README.md
 ```
@@ -24,14 +32,12 @@ conda activate kamp-contest
 
 ## 실행 방법
 
-1. 원본 데이터를 `data/raw/` 에 넣습니다.
-2. 전체 파이프라인을 실행합니다.
-
 ```bash
 python run_all.py
 ```
 
-결과물은 `outputs/` 에 저장됩니다.
+전처리 → EDA 시각화 → 통계 → 패턴 분석 → 베이스라인 평가 순으로 실행되며, 결과물은 `outputs/`에 저장됩니다.
+단계별로 실행하려면 `python src/<스크립트>.py` 를 사용합니다. 어느 폴더에서 실행해도 경로는 저장소 기준으로 잡힙니다.
 
 ## 주요 라이브러리
 
@@ -39,5 +45,5 @@ python run_all.py
 - pandas, numpy
 - scikit-learn, lightgbm
 - shap
-- matplotlib, seaborn
+- matplotlib
 - jupyter

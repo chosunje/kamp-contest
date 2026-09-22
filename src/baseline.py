@@ -1,6 +1,8 @@
 """검증 전략(시간순 롤링 폴드) + 베이스라인 평가. 가정: 예측 시점 기준 24h 이상 앞(day-ahead)."""
 import pandas as pd, numpy as np
-df = pd.read_csv('outputs/eda/clean_preview.csv', parse_dates=['dt']).sort_values('dt').reset_index(drop=True)
+from preprocess import load, ROOT
+
+df = load()
 t = 'target'
 df['lag24'] = df[t].shift(24); df['lag168'] = df[t].shift(168)
 df['ym'] = df.dt.dt.to_period('M')
@@ -13,7 +15,7 @@ def metrics(y, p):
 
 rows = []
 for m in ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']:   # 각 월을 검증, 그 이전 전체를 학습
-    va = df[df.ym == m]; tr = df[df.dt < va.dt.min()]
+    va = df[df.ym == m]; tr = df[(df.dt < va.dt.min()) & ~df.is_stop]
     prof = tr.groupby(['day', '시간'])[t].mean()
     preds = {
         'lag24': va.lag24,
@@ -28,4 +30,4 @@ piv = res.pivot(index='model', columns='fold', values='MAE').round(1)
 piv['평균'] = piv.mean(axis=1).round(1); print('MAE\n', piv)
 print('RMSE평균\n', res.groupby('model').RMSE.mean().round(1).to_dict())
 print('피크MAE평균\n', res.groupby('model').peakMAE.mean().round(1).to_dict())
-res.to_csv('outputs/baseline_results.csv', index=False)
+res.to_csv(ROOT / 'outputs' / 'baseline_results.csv', index=False, encoding='utf-8-sig')

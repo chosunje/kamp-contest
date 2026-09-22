@@ -1,6 +1,6 @@
 """반복 패턴 분석: 동일한 24시간 전력 프로파일이 어떤 조건에서 반복되는가."""
-import pandas as pd, numpy as np
-df = pd.read_csv('outputs/eda/clean_preview.csv', parse_dates=['dt'])
+from preprocess import load, ROOT
+df = load()
 d = df.groupby('날짜').agg(prof=('target', lambda s: tuple(s)), day=('day', 'first'), m=('m', 'first'),
                           prod=('생산량', 'sum'), ppl=('공장인원', 'sum'), tmean=('기온', 'mean'),
                           pmean=('target', 'mean'), pmax=('target', 'max')).reset_index()
@@ -28,4 +28,4 @@ print(d.groupby('day').apply(lambda x: (x.cnt > 1).mean()).round(2).to_dict())
 print(d.groupby(d.cnt > 1).pmean.mean().round(1).to_dict())
 # 고유(1회) 일수 월별
 print(d[d.cnt == 1].groupby('m').size().to_dict(), ' / 반복', d[d.cnt > 1].groupby('m').size().to_dict())
-d.drop(columns='prof').to_csv('outputs/daily_pattern.csv', index=False)
+d.drop(columns='prof').to_csv(ROOT / 'outputs' / 'daily_pattern.csv', index=False, encoding='utf-8-sig')
