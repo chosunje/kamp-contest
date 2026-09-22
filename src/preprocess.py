@@ -9,7 +9,9 @@ CLEAN = ROOT / 'outputs' / 'eda' / 'clean_preview.csv'
 
 def load() -> pd.DataFrame:
     df = pd.read_csv(RAW)
-    df['시간'] = df.groupby('날짜').cumcount()  # 7/13, 7/15 시간 컬럼 손상 → 행 순서로 복구
+    # 7/13, 7/15: 시간 컬럼 손상 + 생산량 기록 누락 → 학습 제외 (전력값은 정상이라 lag 입력으로는 사용)
+    df['is_corrupt'] = df.groupby('날짜')['시간'].transform(lambda s: (~s.between(0, 23)).any())
+    df['시간'] = df.groupby('날짜').cumcount()
     df['dt'] = pd.to_datetime(df['날짜'].astype(str)) + pd.to_timedelta(df['시간'], unit='h')
     df = df.sort_values('dt').reset_index(drop=True)
     df[['풍속', '강수량']] = df[['풍속', '강수량']].interpolate()
@@ -27,6 +29,7 @@ def load() -> pd.DataFrame:
     df['clone_gid'] = df['날짜'].map(gid)
     df['clone_n'] = df['날짜'].map(size)
     df['is_clone'] = df['clone_n'] > 1
+    df['train_ok'] = ~df['is_stop'] & ~df['is_corrupt']
     return df
 
 
@@ -36,4 +39,5 @@ if __name__ == '__main__':
     df.to_csv(CLEAN, index=False, encoding='utf-8-sig')
     days = df.drop_duplicates('날짜')
     print('복제일', days.is_clone.sum(), '/ 고유일', (~days.is_clone).sum(),
-          '/ 휴무일', days.is_off.sum(), '/ 가동 중단', df.is_stop.sum(), '행 →', CLEAN)
+          '/ 휴무일', days.is_off.sum(), '/ 가동 중단', df.is_stop.sum(), '행',
+          '/ 기록 손상', days.is_corrupt.sum(), '일 →', CLEAN)
