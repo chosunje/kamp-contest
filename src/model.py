@@ -25,12 +25,16 @@ RUNS = {
     # 축 1. 복제일 처리 (D07 미결) — 161일을 어떻게 다룰 것인가
     '1 복제일 학습 제외':             dict(clone='drop'),
     f'2 복제일 가중치 {CLONE_W}':      dict(clone='weight'),
-    # 축 2. 학습 행 (D18 잠정) — 생산기록 누락 의심일 15일을 뺄 것인가
+    # 축 2. 학습 행 (작업내역(조선제).txt [3] 보강 1) — 생산기록 누락 의심일 15일을 뺄 것인가
     '3 누락일 포함 (train_ok)':       dict(train_flag='train_ok'),
     # 축 3. 피처 세트 — 테스트에 생산계획이 안 올 경우 대비
     '4 피처 no_plan (달력+과거전력)':  dict(cols=FEATURES['no_plan']),
     # 축 4. 모델 (과제 요건: 2종 이상 비교)
     '5 RandomForest':                 dict(model='rf'),
+    # 축 5. 예측 시계 (같은 문서 [11]) — 1주 앞 세트는 full 에서 최근 lag 4개를 뺀 것이다.
+    #        빼면 오히려 좋아진다 ([9] 7번). lag24 계열이 요일 패턴을 흐리기 때문
+    '6 1주 앞 (h7_full)':             dict(cols=FEATURES['h7_full']),
+    '7 1주 앞 (h7_no_plan)':          dict(cols=FEATURES['h7_no_plan']),
 }
 
 
