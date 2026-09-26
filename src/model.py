@@ -1,6 +1,7 @@
 """예측 모델. 검증 규약은 baseline.py 와 동일하다 (D12: 시간순 롤링 폴드).
   학습 = 검증월 이전 전체 / 평가 = 고유일만 (복제일을 평가에 넣으면 점수가 부풀려진다)
-  목표선 = 작업내역 [9] 고유일 베이스라인: MAE 23.6 / RMSE 37.6 / peakMAE 37.1
+  목표선 = 작업내역 [9] 고유일 베이스라인: MAE 23.6 / RMSE 35.3 / peakMAE 35.5
+           (baseline.py 가 BASE['train_flag'] 를 따라가므로 학습 행을 바꾸면 목표선도 바뀐다)
 
 실행: python src/model.py  →  outputs/model_results.csv
 """
@@ -148,6 +149,6 @@ if __name__ == '__main__':
             print(f'       {r}: {v}행 (기준 {g.n.iloc[0]}행)')
         print('       → 공통 폴드(NaN 아닌 열)끼리만 비교할 것')
 
-    print('\n목표선 (고유일 베이스라인): MAE 23.6 / RMSE 37.6 / peakMAE 37.1')
+    print('\n목표선 (고유일 베이스라인): MAE 23.6 / RMSE 35.3 / peakMAE 35.5')
     print('판단 기준: "기준대비" 차이가 "흔들림"보다 작으면 차이 없다고 본다')
     print('→', OUT)
