@@ -25,12 +25,37 @@ RUNS = {
     # 축 1. 복제일 처리 (D07 미결) — 161일을 어떻게 다룰 것인가
     '1 복제일 학습 제외':             dict(clone='drop'),
     f'2 복제일 가중치 {CLONE_W}':      dict(clone='weight'),
-    # 축 2. 학습 행 (D18 잠정) — 생산기록 누락 의심일 15일을 뺄 것인가
+    # 축 2. 학습 행 (작업내역(조선제).txt [3] 보강 1) — 생산기록 누락 의심일 15일을 뺄 것인가
     '3 누락일 포함 (train_ok)':       dict(train_flag='train_ok'),
     # 축 3. 피처 세트 — 테스트에 생산계획이 안 올 경우 대비
     '4 피처 no_plan (달력+과거전력)':  dict(cols=FEATURES['no_plan']),
     # 축 4. 모델 (과제 요건: 2종 이상 비교)
     '5 RandomForest':                 dict(model='rf'),
+    # 축 5. 예측 시계 (같은 문서 [11]) — 1주 앞 세트는 full 에서 최근 lag 4개를 뺀 것이다.
+    #        빼면 오히려 좋아진다 ([9] 7번). lag24 계열이 요일 패턴을 흐리기 때문
+    '6 1주 앞 (h7_full)':             dict(cols=FEATURES['h7_full']),
+    '7 1주 앞 (h7_no_plan)':          dict(cols=FEATURES['h7_no_plan']),
+
+    # ── 여기부터는 "한 번에 하나" 규칙의 예외 ─────────────────────────────
+    # 위에서 따로 좋았던 2번과 6번을 합치면 효과가 더해지는지 겹치는지 본다.
+    # 8 을 2번·6번과 비교하면 각 요소가 조합 안에서도 여전히 기여하는지 알 수 있다.
+    '8 조합 (가중치+1주앞)':           dict(clone='weight', cols=FEATURES['h7_full']),
+    '9 조합 + 누락일 포함':            dict(clone='weight', cols=FEATURES['h7_full'],
+                                          train_flag='train_ok'),
+
+    # ── 복제일 가중치 값 탐색 ────────────────────────────────────────────
+    # 0 에 가까울수록 "제외"(1번), 1.0 이면 "그대로"(0번)와 같아진다.
+    # 1.0 은 0번과 같은 값이 나와야 한다 — 가중치 구현이 맞는지 확인하는 용도
+    '10 가중치 0.1':                  dict(clone='weight', clone_w=0.1),
+    '11 가중치 0.5':                  dict(clone='weight', clone_w=0.5),
+    '12 가중치 0.7':                  dict(clone='weight', clone_w=0.7),
+    '13 가중치 1.0 (= 0번 검산)':      dict(clone='weight', clone_w=1.0),
+
+    # ── 가장 좋았던 조합(8번)에 가장 좋았던 가중치(0.1)를 합치면 ────────────
+    '14 조합 + 가중치 0.1':            dict(clone='weight', clone_w=0.1, cols=FEATURES['h7_full']),
+    '15 조합 + 가중치 0.05':           dict(clone='weight', clone_w=0.05, cols=FEATURES['h7_full']),
+    # 생산계획이 없는 쪽에도 같은 조합이 통하는지 (7번과 비교할 것)
+    '16 no_plan 조합':                dict(clone='weight', clone_w=0.1, cols=FEATURES['h7_no_plan']),
 }
 
 
@@ -46,12 +71,14 @@ def make_model(name, seed=0):
     raise ValueError(f'모르는 모델: {name}')
 
 
-def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep', seed=0):
+def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep',
+                 clone_w=CLONE_W, seed=0):
     """시간순 롤링 폴드로 학습·예측한 결과를 행 단위로 돌려준다.
 
     cols       사용할 피처 목록 (FEATURES['full'] 또는 FEATURES['no_plan'])
     train_flag 학습에 쓸 행 (train_ok 또는 train_ok_strict)
     clone      복제일 처리 (D07 미결). keep 그대로 / drop 학습 제외 / weight 가중치 하향
+    clone_w    clone='weight' 일 때 복제일에 줄 가중치. 1.0 이면 keep 과 같고 0 에 가까울수록 drop 에 가깝다
     seed       난수 시드. 같은 설정을 여러 시드로 돌려 "차이가 흔들림보다 큰지" 본다
     """
     out = []
@@ -62,7 +89,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
             tr = tr[~tr.is_clone]
         if len(va) == 0 or len(tr) < 200:
             continue                                        # 6월은 고유일이 2일뿐이라 건너뛸 수 있다
-        w = np.where(tr.is_clone, CLONE_W, 1.0) if clone == 'weight' else None
+        w = np.where(tr.is_clone, clone_w, 1.0) if clone == 'weight' else None
         thr = tr.target.quantile(.95)                       # 피크 임계: 학습 구간 상위 5% (D10 확정 전 임시)
         xtr, xva = tr[cols], va[cols]
         if model in NEEDS_FILL:
