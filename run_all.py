@@ -2,6 +2,9 @@
 
 사용법:
     python run_all.py
+
+모델 비교(model.py)는 설정 17개 x 시드 3개를 돌아 약 3분 걸린다.
+전처리·EDA만 다시 만들려면 STEPS 앞쪽 5개만 개별 실행하면 된다.
 """
 import runpy, sys
 from pathlib import Path
@@ -14,11 +17,9 @@ STEPS = [
     ('기저부하·피크 통계', 'eda3.py'),
     ('반복 패턴 분석', 'pattern.py'),
     ('피처 생성', 'features.py'),
-    ('베이스라인', 'models/baseline/train.py'),
-    ('Ridge 선형회귀', 'models/ridge/train.py'),
-    ('LightGBM', 'models/lgbm/train.py'),
-    ('앙상블', 'models/ensemble/train.py'),
-    ('모델 비교', 'models/compare.py'),
+    ('베이스라인 (목표선)', 'baseline.py'),
+    ('모델 비교 실험', 'model.py'),
+    ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
 ]
 
 
