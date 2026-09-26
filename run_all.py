@@ -13,8 +13,12 @@ STEPS = [
     ('EDA 시각화', 'eda.py'),
     ('기저부하·피크 통계', 'eda3.py'),
     ('반복 패턴 분석', 'pattern.py'),
-    ('베이스라인 평가', 'baseline.py'),
     ('피처 생성', 'features.py'),
+    ('베이스라인', 'models/baseline/train.py'),
+    ('Ridge 선형회귀', 'models/ridge/train.py'),
+    ('LightGBM', 'models/lgbm/train.py'),
+    ('앙상블', 'models/ensemble/train.py'),
+    ('모델 비교', 'models/compare.py'),
 ]
 
 
