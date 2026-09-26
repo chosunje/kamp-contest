@@ -10,16 +10,19 @@
 import sys
 import numpy as np, pandas as pd
 from features import build, FEATURES, peak_ratio
-from model import make_model, CLONE_W
+from model import make_model, CLONE_W, FINAL_CFG
 from preprocess import ROOT
 
 HORIZON = 7   # 일. 대상일 7일 전에 예측한다
 
 
 def forecast(X, target_date, cols=None, model='lgbm', train_flag='train_ok_strict',
-             clone='weight', seed=0):
-    """대상일 24행을 예측해 돌려준다. 학습에는 예측 시점 이전 행만 쓴다."""
-    cols = cols or FEATURES['h7_full']
+             clone='weight', seed=0, params=None, peak_w=None):
+    """대상일 24행을 예측해 돌려준다. 학습에는 예측 시점 이전 행만 쓴다.
+    기본값은 model.py 에서 고른 최종 설정(FINAL_CFG)과 같다."""
+    cols = cols or FINAL_CFG['cols']
+    params = FINAL_CFG['params'] if params is None else params
+    peak_w = FINAL_CFG['peak_w'] if peak_w is None else peak_w
     day = X[X['날짜'] == target_date]
     if day.empty:
         raise SystemExit(f'{target_date} 행이 없다. 미래 날짜를 예측하려면 그날의 '
@@ -27,8 +30,10 @@ def forecast(X, target_date, cols=None, model='lgbm', train_flag='train_ok_stric
 
     cutoff = day['dt'].min() - pd.Timedelta(days=HORIZON)     # 이 시각 이후 정보는 쓰지 않는다
     tr = X[(X['dt'] < cutoff) & X[train_flag]]
-    w = np.where(tr.is_clone, CLONE_W, 1.0) if clone == 'weight' else None
-    g = make_model(model, seed).fit(tr[cols], tr.target, sample_weight=w)
+    w = np.where(tr.is_clone, CLONE_W, 1.0) if clone == 'weight' else np.ones(len(tr))
+    if peak_w != 1.0:   # 피크 과소예측 보정: 학습 구간 상위 5% 행을 더 무겁게 학습한다
+        w = w * np.where(tr.target >= tr.target.quantile(.95), peak_w, 1.0)
+    g = make_model(model, seed, params).fit(tr[cols], tr.target, sample_weight=w)
 
     out = day[['dt', '날짜', 'hour']].copy()
     out['pred'] = g.predict(day[cols])

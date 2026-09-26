@@ -25,9 +25,15 @@ D = ['lag24', 'lag168', 'lag336', 'lag_week_mean4', 'lag_prev_op',
 A7 = ['hour', 'dow', 'is_weekend', 'is_holiday', 'shift', 'is_transition', 'month']
 B7 = ['after_off', 'off_run_prev', 'days_since_off'] + B
 D7 = ['lag168', 'lag336', 'lag_week_mean4', 'last_week_day_mean', 'last_week_day_max']
+# H. 공휴일 x 생산 상호작용 (근거: 작업내역(조선제).txt [16] 12-1)
+#   공휴일에 생산 기록이 있으면 부분 가동이라 생산량 대비 전력이 낮다.
+#   is_holiday 와 prod 를 따로 주면 나무가 "공휴일 & 생산량 많음" 조합을 스스로 찾아야 하는데
+#   학습 구간에 그런 날이 2일뿐이라 분기가 만들어지지 않는다 → 곱해서 직접 넣어 준다.
+H = ['hol_op', 'hol_prod', 'hol_day_prod']
 
 FEATURES = {'full': A + B + C + D, 'no_plan': A + D,
-            'h7_full': A7 + B7 + C + D7, 'h7_no_plan': A7 + D7}
+            'h7_full': A7 + B7 + C + D7, 'h7_no_plan': A7 + D7,
+            'h7_full_hol': A7 + B7 + C + D7 + H}
 META = ['dt', '날짜', 'target', 'target_max15', 'target_max15_trapz', 'is_clone', 'is_off',
         'is_stop', 'is_corrupt', 'is_prod_missing', 'train_ok', 'train_ok_strict']
 
@@ -69,6 +75,11 @@ def build() -> pd.DataFrame:
     f['prod_prev'] = day['생산량'].shift(1)
     f['prod_next'] = day['생산량'].shift(-1)
     f['prod_diff'] = f['prod'] - f['prod_prev']
+
+    # H. 공휴일 x 생산 (달력 + 생산계획이라 예측 시점에 알 수 있다 → 누수 없음)
+    f['hol_op'] = ((f['is_holiday'] == 1) & (f['day_prod'] > 0)).astype(int)   # 공휴일인데 생산하는 날
+    f['hol_prod'] = f['is_holiday'] * f['prod']
+    f['hol_day_prod'] = f['is_holiday'] * f['day_prod']
 
     # C. 기상 (실측을 예보로 가정)
     f['cool'] = (df['기온'] - COOL_BASE).clip(lower=0)

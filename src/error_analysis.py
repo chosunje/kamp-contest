@@ -11,15 +11,16 @@
 """
 import numpy as np, pandas as pd, shap
 from features import build, FEATURES
-from model import make_model, rolling_eval, BASE, CLONE_W
+from model import make_model, rolling_eval, FINAL_CFG
 from preprocess import ROOT
 
 OUT_ROWS = ROOT / 'outputs' / 'error_rows.csv'
 OUT_COND = ROOT / 'outputs' / 'error_by_cond.csv'
 OUT_SHAP = ROOT / 'outputs' / 'shap_importance.csv'
 
-# 현재 최종 후보 = 8번 설정 (1주 앞 피처 + 복제일 가중치 0.3 + strict)
-FINAL = dict(BASE, cols=FEATURES['h7_full'], clone='weight', clone_w=CLONE_W)
+# 최종 설정은 model.py 한 곳에서만 정의한다 (35번: 1주 앞 피처 + 복제일 가중치 0.3
+# + strict + 아주 얕은 나무 + 피크행 가중 3배). 근거는 작업내역(조선제).txt [16] 12단계
+FINAL = FINAL_CFG
 
 
 def predict_rows(X, seeds=(0, 1, 2)):
@@ -66,8 +67,11 @@ def shap_importance(X, cols=None, seed=0):
     """전체 학습 구간으로 한 번 학습해 SHAP 기여도를 본다 (전역 영향요인용)."""
     cols = cols or FINAL['cols']
     tr = X[X[FINAL['train_flag']]]
+    # 학습 가중치는 rolling_eval 과 똑같이 만든다 (복제일 하향 x 피크행 상향)
     w = np.where(tr.is_clone, FINAL['clone_w'], 1.0)
-    g = make_model(FINAL['model'], seed).fit(tr[cols], tr.target, sample_weight=w)
+    w = w * np.where(tr.target >= tr.target.quantile(.95), FINAL.get('peak_w', 1.0), 1.0)
+    g = make_model(FINAL['model'], seed, FINAL.get('params')).fit(
+        tr[cols], tr.target, sample_weight=w)
     sv = shap.TreeExplainer(g).shap_values(tr[cols])
     imp = pd.Series(np.abs(sv).mean(axis=0), index=cols).sort_values(ascending=False)
     return (imp / imp.sum() * 100).round(2), sv, tr[cols]
