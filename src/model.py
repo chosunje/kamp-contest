@@ -1,16 +1,21 @@
 """예측 모델. 검증 규약은 baseline.py 와 동일하다 (D12: 시간순 롤링 폴드).
   학습 = 검증월 이전 전체 / 평가 = 고유일만 (복제일을 평가에 넣으면 점수가 부풀려진다)
-  목표선 = 작업내역 [9] 고유일 베이스라인: MAE 23.6 / RMSE 37.6 / peakMAE 37.1
+  개발 폴드는 5 to 8월. 9월은 최종 확인용으로 남겨둔다 (--final 로 한 번만 확인).
+  같은 5 to 8월 기준 베이스라인 lag168 은 MAE 26.8 / RMSE 52.5 / peakMAE 44.6
 
 실행: python src/model.py  →  outputs/model_results.csv
 """
+import sys
 import numpy as np, pandas as pd, lightgbm as lgb
 from sklearn.ensemble import RandomForestRegressor
 from features import build, FEATURES
 from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'model_results.csv'
-FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
+# 개발 폴드는 5 to 8월만 쓰고 9월(9/1 to 9/14)은 최종 확인용으로 남겨둔다 (팀 결정 D17).
+# 설정을 고르는 동안 9월을 보면, 마지막에 진짜 실력을 확인할 데이터가 남지 않는다.
+FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08']
+FINAL_FOLD = '2021-09'
 SEEDS = (0, 1, 2)    # 같은 설정을 시드만 바꿔 여러 번 돌린다 (차이가 흔들림보다 큰지 보려고)
 CLONE_W = 0.3        # clone='weight' 일 때 복제일에 줄 가중치
 NEEDS_FILL = {'rf'}  # 결측을 직접 못 다루는 모델. 트리라서 -999 로 채우면 분기로 갈라낸다
@@ -72,7 +77,7 @@ def make_model(name, seed=0):
 
 
 def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep',
-                 clone_w=CLONE_W, seed=0):
+                 clone_w=CLONE_W, seed=0, folds=None):
     """시간순 롤링 폴드로 학습·예측한 결과를 행 단위로 돌려준다.
 
     cols       사용할 피처 목록 (FEATURES['full'] 또는 FEATURES['no_plan'])
@@ -82,7 +87,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
     seed       난수 시드. 같은 설정을 여러 시드로 돌려 "차이가 흔들림보다 큰지" 본다
     """
     out = []
-    for m in FOLDS:
+    for m in (folds or FOLDS):
         va = X[(X.ym == m) & X.train_ok & ~X.is_clone]      # 평가셋은 어떤 설정에서도 고정
         tr = X[(X['dt'] < va['dt'].min()) & X[train_flag]]
         if clone == 'drop':
@@ -107,14 +112,14 @@ def score(s):
                       'peakMAE': e[s.peak].abs().mean(), 'n': len(s)})
 
 
-def run_all(X, runs, base, seeds=SEEDS):
+def run_all(X, runs, base, seeds=SEEDS, folds=None):
     """설정 여러 개를 시드별로 돌려 폴드별 + 합산(ALL) 성적표를 만든다.
     각 run 은 base 에서 지정한 항목만 덮어쓴 것이다 (= 한 번에 한 가지만 다르다)."""
     rows = []
     for name, over in runs.items():
         kw = {**base, **over}
         for sd in seeds:
-            P = rolling_eval(X, seed=sd, **kw)
+            P = rolling_eval(X, seed=sd, folds=folds, **kw)
             rows.append({'run': name, 'seed': sd, 'fold': 'ALL', **score(P)})
             for f, s in P.groupby('fold'):
                 rows.append({'run': name, 'seed': sd, 'fold': f, **score(s)})
@@ -123,9 +128,25 @@ def run_all(X, runs, base, seeds=SEEDS):
     return res
 
 
+# --final 로 9월을 확인할 때 평가할 후보. 모든 선택이 끝난 뒤 한 번만 돌린다
+FINALISTS = {k: RUNS[k] for k in ['0 기준 (lgbm·full·strict·keep)', '8 조합 (가중치+1주앞)']}
+
+
 if __name__ == '__main__':
     X = build()
     X['ym'] = X['dt'].dt.to_period('M').astype(str)
+
+    if '--final' in sys.argv:
+        # 최종 확인: 미개봉으로 남겨둔 9월에서 후보를 한 번만 평가한다.
+        # 여기 숫자를 보고 설정을 다시 고르면 9월도 개발 데이터가 되어 버리므로 그러지 말 것.
+        f = run_all(X, FINALISTS, BASE, folds=[FINAL_FOLD])
+        g = f[f.fold == 'ALL'].groupby('run', sort=False).agg(
+            MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'), RMSE=('RMSE', 'mean'),
+            peakMAE=('peakMAE', 'mean'), n=('n', 'first'))
+        print(f'[최종 확인] {FINAL_FOLD} · 고유일 · 시드 {list(SEEDS)} 평균')
+        print(g.round(2).to_string())
+        print('\n※ 이 결과를 보고 설정을 바꾸면 9월이 더 이상 미개봉이 아니게 된다.')
+        raise SystemExit
 
     res = run_all(X, RUNS, BASE)
     res.to_csv(OUT, index=False, encoding='utf-8-sig')

@@ -6,7 +6,7 @@ df = load()
 t = 'target'
 df['lag24'] = df[t].shift(24); df['lag168'] = df[t].shift(168)
 df['ym'] = df.dt.dt.to_period('M').astype(str)
-FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
+FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08']   # 9월은 최종 확인용으로 제외 (D17)
 GROUPS = {'전체': lambda s: s, '복제일': lambda s: s[s.is_clone], '고유일': lambda s: s[~s.is_clone]}
 
 preds = []
