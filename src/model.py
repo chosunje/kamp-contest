@@ -95,8 +95,9 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
         if model in NEEDS_FILL:
             xtr, xva = xtr.fillna(-999), xva.fillna(-999)
         g = make_model(model, seed).fit(xtr, tr.target, sample_weight=w)
-        out.append(pd.DataFrame({'fold': m, 'y': va.target.values, 'p': g.predict(xva),
-                                 'peak': va.target.values >= thr}))
+        # idx = 검증 행의 원본 인덱스. 오차 분석에서 조건별로 되짚어 보려고 같이 들고 나간다
+        out.append(pd.DataFrame({'fold': m, 'idx': va.index, 'y': va.target.values,
+                                 'p': g.predict(xva), 'peak': va.target.values >= thr}))
     return pd.concat(out, ignore_index=True)
 
 

@@ -15,6 +15,9 @@ STEPS = [
     ('반복 패턴 분석', 'pattern.py'),
     ('베이스라인 평가', 'baseline.py'),
     ('피처 생성', 'features.py'),
+    ('모델 비교 실험', 'model.py'),
+    ('영향요인·오차 분석', 'error_analysis.py'),
+    ('1주 앞 예측', 'forecast.py'),
 ]
 
 
