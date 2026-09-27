@@ -16,6 +16,8 @@ kamp-contest/
 │   ├── features.py     # 모델 입력 피처 생성 (피처목록.txt 기준)
 │   ├── baseline.py     # 베이스라인 4종 (모델이 넘어야 할 목표선)
 │   ├── model.py        # 모델 비교 실험 (LightGBM / RandomForest, 설정 x 시드 x 폴드)
+│   ├── error_analysis.py # 최종 후보 OOF 예측 및 조건별 오차 분석
+│   ├── operational_correction.py # 생산종료 이후 운영규칙 보정 실험(선택)
 │   └── forecast.py     # 특정 날짜 24시간을 1주 앞 시점에서 예측
 ├── outputs/
 │   ├── eda/            # 그림 01 to 07, captions.txt, clean_preview.csv
@@ -24,6 +26,11 @@ kamp-contest/
 │   ├── peak_ratio.csv  # 시각별 15분최대/시간평균 환산 계수
 │   ├── baseline_results.csv
 │   ├── model_results.csv
+│   ├── error_predictions.csv
+│   ├── error_by_condition.csv
+│   ├── error_by_date.csv
+│   ├── error_top_cases.csv
+│   ├── error_summary.txt
 │   └── forecast_{날짜}.csv
 ├── run_all.py          # 전체 파이프라인 실행
 ├── environment.yml     # conda 환경 정의
@@ -43,10 +50,12 @@ conda activate kamp-contest
 python run_all.py
 ```
 
-전처리 → EDA 시각화 → 통계 → 패턴 분석 → 피처 생성 → 베이스라인 → 모델 비교 실험 → 1주 앞 예측 순으로 실행되며, 결과물은 `outputs/`에 저장됩니다. 모델 비교 실험은 약 3분 걸립니다.
+전처리 → EDA 시각화 → 통계 → 패턴 분석 → 피처 생성 → 베이스라인 → 모델 비교 실험 → 예측오차 분석 → 1주 앞 예측 순으로 실행되며, 결과물은 `outputs/`에 저장됩니다. 모델 비교와 오차 분석은 여러 시드·폴드를 반복 학습하므로 다른 단계보다 오래 걸립니다.
 
 단계별로 실행하려면 `python src/<스크립트>.py` 를 사용합니다. 어느 폴더에서 실행해도 경로는 저장소 기준으로 잡힙니다.
 특정 날짜만 예측하려면 `python src/forecast.py 20210914` 처럼 날짜를 넘깁니다.
+
+오차 분석 후 생산계획상 마지막 생산시간 이후의 과대예측을 제한하는 운영규칙 실험은 `python src/operational_correction.py` 로 별도 실행합니다. 이 보정은 전체 점수는 개선되지만 일부 폴드가 악화되어 현재는 최종 모델이 아닌 실험 후보입니다.
 
 모델 검증은 시간순 롤링 폴드로 하고, 성능 판단은 고유일 기준으로 합니다. 자세한 실험 결과는 `작업내역(조선제).txt` [13] [14] 를 참고하세요.
 
