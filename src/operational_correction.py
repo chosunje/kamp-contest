@@ -64,8 +64,11 @@ def main():
     P['error_corrected'] = P.target - P.pred_corrected
     P['abs_error_corrected'] = P.error_corrected.abs()
 
+    from model import CORE_FOLDS, CORE
     rows = []
-    for scope, s in [('ALL', P), *[(f, g) for f, g in P.groupby('fold', sort=False)]]:
+    scopes = [('ALL', P), (CORE, P[P.fold.isin(CORE_FOLDS)]),
+              *[(f, g) for f, g in P.groupby('fold', sort=False)]]
+    for scope, s in scopes:
         a = calc(s, 'pred')
         b = calc(s, 'pred_corrected')
         rows.append({
@@ -83,6 +86,7 @@ def main():
     R.to_csv(OUT_RES, index=False, encoding='utf-8-sig')
 
     a = R.iloc[0]
+    c = R[R.fold == CORE].iloc[0]
     lines = [
         '==============================================================',
         ' 생산종료 이후 운영규칙 보정 실험',
@@ -90,14 +94,19 @@ def main():
         '규칙: 생산계획상 마지막 생산시간 이후이고 모델 예측이 학습구간 동일조건 중앙값보다',
         '      높으면 그 중앙값으로 상한 제한한다. 현재 각 폴드의 중앙값은 23 수준이다.',
         '',
-        f'[전체] 변경 {int(a.changed):,}/{int(a.n):,}행',
+        f'[전체 5 to 9월] 변경 {int(a.changed):,}/{int(a.n):,}행',
         f'MAE  {a.MAE_base:.2f} → {a.MAE_corrected:.2f} ({a.MAE_delta:+.2f})',
         f'RMSE {a.RMSE_base:.2f} → {a.RMSE_corrected:.2f} ({a.RMSE_delta:+.2f})',
         f'peakMAE {a.peakMAE_base:.2f} → {a.peakMAE_corrected:.2f}',
         '',
+        f'★ [{CORE}] 테스트 구간과 성격이 같은 구간 · 이 수치를 우선 본다',
+        f'   변경 {int(c.changed):,}/{int(c.n):,}행',
+        f'   MAE  {c.MAE_base:.2f} → {c.MAE_corrected:.2f} ({c.MAE_delta:+.2f})',
+        f'   RMSE {c.RMSE_base:.2f} → {c.RMSE_corrected:.2f} ({c.RMSE_delta:+.2f})',
+        '',
         '[폴드별]',
     ]
-    for _, r in R.iloc[1:].iterrows():
+    for _, r in R[~R.fold.isin(['ALL', CORE])].iterrows():
         lines.append(
             f'- {r.fold}: 변경 {int(r.changed)}행, MAE {r.MAE_base:.2f} → {r.MAE_corrected:.2f}, '
             f'RMSE {r.RMSE_base:.2f} → {r.RMSE_corrected:.2f}'

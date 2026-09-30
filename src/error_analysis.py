@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from features import build, FEATURES
-from model import FOLDS, SEEDS, make_model
+from model import FOLDS, CORE_FOLDS, CORE, SEEDS, make_model
 from preprocess import ROOT
 
 OUT_PRED = ROOT / 'outputs' / 'error_predictions.csv'
@@ -136,6 +136,8 @@ def condition_table(P: pd.DataFrame) -> pd.DataFrame:
     out = []
 
     add_group(out, P, 'fold', P.fold)
+    # 테스트 구간과 성격이 같은 7 to 9월을 한 줄로 따로 남긴다 (5월은 학습량 부족 + 복제일 편중)
+    add_group(out, P, 'period', P.fold.isin(CORE_FOLDS).map({True: CORE, False: '5 to 6월'}))
     add_group(out, P, 'month', P.month.map(lambda x: f'{int(x)}월'))
     add_group(out, P, 'dow', P.dow.map({1:'월', 2:'화', 3:'수', 4:'목', 5:'금', 6:'토', 7:'일'}))
     add_group(out, P, 'hour', P.hour.map(lambda x: f'{int(x):02d}시'))
@@ -232,6 +234,7 @@ def main():
     T.to_csv(OUT_TOP, index=False, encoding='utf-8-sig')
 
     overall = metrics(P)
+    core = metrics(P[P.fold.isin(CORE_FOLDS)])
     special = C[C.axis == 'special'].set_index('condition')
     worst_hours = (C[C.axis == 'hour'].sort_values('MAE', ascending=False).head(5)
                    [['condition', 'n', 'MAE', 'bias']])
@@ -246,9 +249,14 @@ def main():
         f'모델: LightGBM / h7_full / {TRAIN_FLAG} / 복제일 가중치 {CLONE_W}',
         f'시드: {list(SEEDS)} 예측값 평균 / 평가: 고유일 & train_ok / 폴드: {FOLDS}',
         '',
-        f'[전체] n={overall["n"]:,}  MAE={overall["MAE"]:.2f}  RMSE={overall["RMSE"]:.2f}  '
+        f'[전체 5 to 9월] n={overall["n"]:,}  MAE={overall["MAE"]:.2f}  RMSE={overall["RMSE"]:.2f}  '
         f'bias={overall["bias"]:+.2f}  |오차|90%={overall["p90_abs_error"]:.2f}',
         f'과소예측 비율={overall["under_rate"]:.1%}  피크 비율={overall["peak_rate"]:.1%}',
+        '',
+        f'★ [{CORE}] 테스트 구간과 성격이 같은 구간 · 이 수치를 우선 본다',
+        f'   n={core["n"]:,}  MAE={core["MAE"]:.2f}  RMSE={core["RMSE"]:.2f}  '
+        f'bias={core["bias"]:+.2f}  |오차|90%={core["p90_abs_error"]:.2f}',
+        f'   (5월은 학습이 4개월뿐이고 그 대부분이 복제일이라 전체 평균을 끌어올린다)',
         '',
         '[핵심 조건]',
     ]

@@ -8,7 +8,7 @@ model.py 의 BASE 를 바꾸면 목표선도 같은 조건으로 따라 움직�
 """
 import numpy as np, pandas as pd
 from features import build
-from model import FOLDS, score, BASE
+from model import FOLDS, CORE_FOLDS, CORE, score, BASE
 from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'baseline_results.csv'
@@ -55,6 +55,8 @@ if __name__ == '__main__':
         s = f(P)
         for k, v in s.groupby('model'):
             rows.append({'model': k, 'group': g, 'fold': 'ALL', **score(v)})
+        for k, v in s[s.fold.isin(CORE_FOLDS)].groupby('model'):
+            rows.append({'model': k, 'group': g, 'fold': CORE, **score(v)})
         for (k, m), v in s.groupby(['model', 'fold']):
             rows.append({'model': k, 'group': g, 'fold': m, **score(v)})
     res = pd.DataFrame(rows)
@@ -63,14 +65,18 @@ if __name__ == '__main__':
 
     order = ['lag168', '요일x시간 평균', 'lag24', '전체 평균']
     a = res[(res.group == '고유일') & (res.fold == 'ALL')].set_index('model').reindex(order)
-    print(f'[고유일 폴드 합산] 모델이 넘어야 할 목표선  (학습 행 {TRAIN_FLAG})')
+    c = res[(res.group == '고유일') & (res.fold == CORE)].set_index('model').reindex(order)
+    print(f'[고유일 폴드 합산 5 to 9월] 모델이 넘어야 할 목표선  (학습 행 {TRAIN_FLAG})')
     print(a[['MAE', 'RMSE', 'peakMAE', 'n']].round(2).to_string())
+    print(f'\n★ [{CORE} 기준] 테스트 구간과 성격이 같은 구간 · 이 표를 우선 본다')
+    print(c[['MAE', 'RMSE', 'peakMAE', 'n']].round(2).to_string())
     print('\n[고유일 폴드별 MAE]')
-    print(res[(res.group == '고유일') & (res.fold != 'ALL')]
+    print(res[(res.group == '고유일') & ~res.fold.isin(['ALL', CORE])]
           .pivot(index='model', columns='fold', values='MAE').reindex(order).round(1).to_string())
     print('\n[복제일 비교] 복제일 성적은 복제 덕분이라 실력이 아니다 (MAE)')
     print(res[(res.fold == 'ALL')].pivot(index='model', columns='group', values='MAE')
           .reindex(order).round(1).to_string())
-    print(f'\n목표선: MAE {a.MAE.min():.1f} / RMSE {a.RMSE.min():.1f} / peakMAE {a.peakMAE.min():.1f}'
+    print(f'\n목표선 5 to 9월: MAE {a.MAE.min():.1f} / RMSE {a.RMSE.min():.1f} / peakMAE {a.peakMAE.min():.1f}')
+    print(f'★ 목표선 {CORE}: MAE {c.MAE.min():.1f} / RMSE {c.RMSE.min():.1f} / peakMAE {c.peakMAE.min():.1f}'
           '  (지표별 최저 베이스라인)')
     print('→', OUT)

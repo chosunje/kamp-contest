@@ -12,6 +12,10 @@ from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'model_results.csv'
 FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
+# 7 to 9월은 전부 고유일이고 테스트 구간(9/15 이후 추정)과 성격이 같다.
+# 5월은 학습이 4개월뿐인 데다 그 대부분이 복제일이라 평균을 끌어올린다 → 두 기준을 함께 본다
+CORE_FOLDS = ['2021-07', '2021-08', '2021-09']
+CORE = 'CORE(7 to 9월)'
 SEEDS = (0, 1, 2)    # 같은 설정을 시드만 바꿔 여러 번 돌린다 (차이가 흔들림보다 큰지 보려고)
 CLONE_W = 0.3        # clone='weight' 일 때 복제일에 줄 가중치
 NEEDS_FILL = {'rf'}  # 결측을 직접 못 다루는 모델. 트리라서 -999 로 채우면 분기로 갈라낸다
@@ -116,6 +120,9 @@ def run_all(X, runs, base, seeds=SEEDS):
         for sd in seeds:
             P = rolling_eval(X, seed=sd, **kw)
             rows.append({'run': name, 'seed': sd, 'fold': 'ALL', **score(P)})
+            core = P[P.fold.isin(CORE_FOLDS)]
+            if len(core):
+                rows.append({'run': name, 'seed': sd, 'fold': CORE, **score(core)})
             for f, s in P.groupby('fold'):
                 rows.append({'run': name, 'seed': sd, 'fold': f, **score(s)})
     res = pd.DataFrame(rows)
@@ -135,11 +142,21 @@ if __name__ == '__main__':
                                          RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean'),
                                          n=('n', 'first'))
     g['기준대비'] = g.MAE - g.MAE.iloc[0]
-    print(f'[폴드 합산] 고유일 기준 · 시드 {list(SEEDS)} 평균')
+    print(f'[폴드 합산 5 to 9월] 고유일 기준 · 시드 {list(SEEDS)} 평균')
     print(g[['MAE', '흔들림', '기준대비', 'RMSE', 'peakMAE', 'n']].round(2).to_string())
+
+    # ★ 테스트 구간과 성격이 같은 7 to 9월만 따로 본다 (5월은 학습량 부족 + 복제일 편중)
+    c = res[res.fold == CORE]
+    gc = c.groupby('run', sort=False).agg(MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'),
+                                          RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean'),
+                                          n=('n', 'first'))
+    gc['기준대비'] = gc.MAE - gc.MAE.iloc[0]
+    print(f'\n★ [{CORE} 기준] 테스트 구간과 성격이 같은 구간 · 이 표를 우선 본다')
+    print(gc[['MAE', '흔들림', '기준대비', 'RMSE', 'peakMAE', 'n']].round(2).to_string())
+
     print('\n[폴드별 MAE] (시드 평균)')
-    print(res[res.fold != 'ALL'].pivot_table(index='run', columns='fold', values='MAE',
-                                             aggfunc='mean', sort=False).round(1).to_string())
+    print(res[~res.fold.isin(['ALL', CORE])].pivot_table(index='run', columns='fold', values='MAE',
+                                                         aggfunc='mean', sort=False).round(1).to_string())
     # 학습 행이 모자라 폴드가 통째로 건너뛰어지면 평가 행 수가 달라져 비교가 성립하지 않는다
     bad = g[g.n != g.n.iloc[0]]
     if len(bad):
@@ -149,6 +166,8 @@ if __name__ == '__main__':
             print(f'       {r}: {v}행 (기준 {g.n.iloc[0]}행)')
         print('       → 공통 폴드(NaN 아닌 열)끼리만 비교할 것')
 
-    print('\n목표선 (고유일 베이스라인): MAE 23.6 / RMSE 35.3 / peakMAE 35.5')
+    print('\n목표선 (고유일 베이스라인, src/baseline.py)')
+    print('  5 to 9월      MAE 23.6 / RMSE 35.3 / peakMAE 35.5')
+    print(f'  {CORE}  MAE 22.9 / RMSE 35.1 / peakMAE 35.7  ← 이 기준을 우선 본다')
     print('판단 기준: "기준대비" 차이가 "흔들림"보다 작으면 차이 없다고 본다')
     print('→', OUT)

@@ -20,6 +20,7 @@ STEPS = [
     ('베이스라인 (목표선)', 'baseline.py'),
     ('모델 비교 실험', 'model.py'),
     ('예측오차 분석', 'error_analysis.py'),
+    ('성능 체감 그림', 'viz_perf.py'),
     ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
 ]
 
