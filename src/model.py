@@ -181,6 +181,8 @@ def run_all(X, runs, base, seeds=SEEDS, folds=None):
 #   약점 B 피크 과소예측    실제가 높을수록 더 낮게 본다
 # 기준은 8번 조합. 여기서 한 가지씩만 바꿔 효과를 잰다.
 BEST = dict(clone='weight', cols=FEATURES['h7_full'])
+# 14단계에서 채택. h7_full 에 lag168 결측 대응(L군)을 더한 것 ([18] 14-2)
+BEST_L = dict(clone='weight', cols=FEATURES['h7_lag'])
 # 실험으로 고른 나무 설정 (12-3). 기본값(num_leaves 31)은 이 데이터에 비해 너무 컸다
 SHALLOW = {'num_leaves': 15, 'min_data_in_leaf': 40}
 TINY = {'num_leaves': 7, 'min_data_in_leaf': 60}
@@ -228,19 +230,28 @@ FIX = {
     '42 아주얕게+천천히':     dict(BEST, params={**TINY, **SLOW}),
     '43 얕게+천천히+피크3+ff6': dict(BEST, params={**SHALLOW, **SLOW, 'feature_fraction': 0.6},
                                     peak_w=3.0),
+    # ── 14단계: 인수인계 [3] 이 남긴 피처 두 가지 (기준은 43번 설정) ──────────
+    # 44 생산계획 창(P군) — D23 규칙을 피처로 바꾼 것. 부분가동일을 겨냥한다
+    # 45 lag168 결측 대응(L군) — 휴가 주에 1주 전이 통째로 비는 문제를 겨냥한다
+    '44 +생산창 (P군)':    dict(BEST, cols=FEATURES['h7_win'], peak_w=3.0,
+                               params={**SHALLOW, **SLOW, 'feature_fraction': 0.6}),
+    '45 +lag대응 (L군)':   dict(BEST, cols=FEATURES['h7_lag'], peak_w=3.0,
+                               params={**SHALLOW, **SLOW, 'feature_fraction': 0.6}),
+    '46 둘 다 (P+L)':      dict(BEST, cols=FEATURES['h7_plus'], peak_w=3.0,
+                               params={**SHALLOW, **SLOW, 'feature_fraction': 0.6}),
 }
 
 # ── 위 실험으로 고른 최종 설정 (CORE 기준으로 다시 고름, [17] 13-2) ──────────
 # ★ 32·35·36·39·43 은 서로 흔들림 안쪽이라 사실상 동률이다. 어느 조합을 고르는지는
 #   중요하지 않고, 공통 재료인 "얕은 나무 + 피크행 가중치"가 효과의 실체다.
 #   그중 세 지표가 모두 기준보다 낫고 RMSE 가 가장 낮은 43번을 대표로 쓴다.
-FINAL_CFG = dict(BASE, **BEST, clone_w=CLONE_W, peak_w=PEAK_W,
+FINAL_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, peak_w=PEAK_W,
                  params={**SHALLOW, **SLOW, 'feature_fraction': 0.6})
 # 33번. 피크를 우선한다면 이쪽 (peakMAE 11.23 / MAE 는 기준보다 여전히 낮다)
-ALT_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
+ALT_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
 # 분위 0.9. 점 예측용이 아니다 (MAE 14.12 로 나쁘다). 피크 경보의 "상한선" 전용이다.
 # peakMAE 8.13 으로 모든 설정 중 압도적으로 낮다 → 인수인계 [2] 1순위 경보에 쓴다
-ALARM_CFG = dict(BASE, **BEST, clone_w=CLONE_W,
+ALARM_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W,
                  params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.9})
 
 # 강화 실험 결과를 본 실험표에도 올려 둔다 (run_all.py 는 --fix 없이 돌기 때문에)

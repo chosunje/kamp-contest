@@ -30,10 +30,23 @@ D7 = ['lag168', 'lag336', 'lag_week_mean4', 'last_week_day_mean', 'last_week_day
 #   is_holiday 와 prod 를 따로 주면 나무가 "공휴일 & 생산량 많음" 조합을 스스로 찾아야 하는데
 #   학습 구간에 그런 날이 2일뿐이라 분기가 만들어지지 않는다 → 곱해서 직접 넣어 준다.
 H = ['hol_op', 'hol_prod', 'hol_day_prod']
+# P. 생산계획 창 — "오늘 생산이 언제 시작해서 언제 끝나는가" (D23 대안, 인수인계 [3] 2번)
+#   D23 은 "마지막 생산시간 이후 예측이 상한을 넘으면 잘라낸다"는 후처리 규칙이었는데
+#   CORE 기준으로는 이득이 없었다(MAE 6.93 → 6.98). 규칙으로 덮어쓰는 대신
+#   같은 정보를 피처로 줘서 모델이 직접 배우게 한다.
+#   생산계획에서 나오는 값이라 예측 시점에 알 수 있다 → 누수 없음
+P = ['in_prod_window', 'hrs_since_prod_end', 'hrs_to_prod_start']
+# L. lag168 결측 대응 (인수인계 [3] 추가 후보)
+#   휴가 주는 lag168 이 통째로 결측이라 모델이 기댈 곳을 잃는다.
+#   "지금 lag168 이 없다"는 사실 자체와, 있으면 lag168 없으면 그다음 것을 쓰는 대체값을 준다.
+L = ['lag168_na', 'lag_best']
 
 FEATURES = {'full': A + B + C + D, 'no_plan': A + D,
             'h7_full': A7 + B7 + C + D7, 'h7_no_plan': A7 + D7,
-            'h7_full_hol': A7 + B7 + C + D7 + H}
+            'h7_full_hol': A7 + B7 + C + D7 + H,
+            'h7_win': A7 + B7 + C + D7 + P,
+            'h7_lag': A7 + B7 + C + D7 + L,
+            'h7_plus': A7 + B7 + C + D7 + P + L}
 META = ['dt', '날짜', 'target', 'target_max15', 'target_max15_trapz', 'is_clone', 'is_off',
         'is_stop', 'is_corrupt', 'is_prod_missing', 'train_ok', 'train_ok_strict']
 
@@ -81,6 +94,17 @@ def build() -> pd.DataFrame:
     f['hol_prod'] = f['is_holiday'] * f['prod']
     f['hol_day_prod'] = f['is_holiday'] * f['day_prod']
 
+    # P. 생산계획 창 — 그날 생산이 도는 시간대의 앞뒤에서 몇 시간 떨어져 있는가
+    #    "마지막 생산 3시간 뒤"와 "10시간 뒤"는 설비 잔열·대기부하가 다르므로
+    #    0/1 플래그가 아니라 경과 시간으로 준다 (팀원이 시험한 before/after 플래그의 연속판)
+    on = df['생산량'] > 0
+    first = df['시간'].where(on).groupby(df['날짜']).transform('min')
+    last = df['시간'].where(on).groupby(df['날짜']).transform('max')
+    has_plan = f['day_prod'] > 0            # 생산계획이 아예 없는 날은 창 자체가 없다
+    f['in_prod_window'] = (has_plan & df['시간'].between(first, last)).astype(int)
+    f['hrs_since_prod_end'] = (df['시간'] - last).where(has_plan & (df['시간'] > last), 0)
+    f['hrs_to_prod_start'] = (first - df['시간']).where(has_plan & (df['시간'] < first), 0)
+
     # C. 기상 (실측을 예보로 가정)
     f['cool'] = (df['기온'] - COOL_BASE).clip(lower=0)
     f['temp'] = df['기온']
@@ -103,6 +127,12 @@ def build() -> pd.DataFrame:
     f['prev_day_max'] = df['날짜'].map(dstat['max'].shift(1))
     f['last_week_day_mean'] = df['날짜'].map(dstat['mean'].shift(7))
     f['last_week_day_max'] = df['날짜'].map(dstat['max'].shift(7))
+
+    # L. lag168 이 없을 때 — 휴가 주는 1주 전이 통째로 결측이라 lag168 을 못 쓴다.
+    #    결측이라는 사실 자체가 정보다 (그 주가 비정상이었다는 뜻). 플래그로 준다.
+    #    lag_best 는 lag168 → lag336 → 최근 4주 평균 순으로 있는 것을 쓰는 대체값이다.
+    f['lag168_na'] = f['lag168'].isna().astype(int)
+    f['lag_best'] = f['lag168'].fillna(f['lag336']).fillna(f['lag_week_mean4'])
 
     meta = df[['dt', '날짜', 'target', 'is_clone', 'is_off', 'is_stop', 'is_corrupt',
                'is_prod_missing', 'train_ok', 'train_ok_strict']].copy()

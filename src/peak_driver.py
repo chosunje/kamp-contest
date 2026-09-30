@@ -23,6 +23,7 @@ from preprocess import ROOT
 OUT_CORR = ROOT / 'outputs' / 'peak_driver_corr.csv'
 OUT_HOUR = ROOT / 'outputs' / 'peak_driver_hours.csv'
 OUT_SAT = ROOT / 'outputs' / 'peak_driver_sat.csv'
+OUT_WHEN = ROOT / 'outputs' / 'peak_driver_when.csv'
 
 TOP_N = 30      # "피크 시간대" 로 볼 상위 몇 개 행인가 (인수인계 [2] 와 같은 기준)
 HIGH = 150      # "그 외 고부하" 의 하한. 전력 150 이상
@@ -86,6 +87,20 @@ def sat_table(X):
     return t.reset_index().rename(columns={'prod': '시간당 생산량'})
 
 
+def when_table(X):
+    """일 최대가 몇 시에 나는가 (인수인계 [2] 2순위 "오전 동시 기동 분산" 의 근거).
+
+    특정 시간대에 몰려 있다면 그 시간대만 눌러도 월 최대가 내려간다.
+    기동 시각을 바꾸는 것은 생산 총량을 건드리지 않으므로 인건비가 늘지 않는다.
+    """
+    o = X[X.train_ok & ~X.is_off]
+    pk = o.loc[o.groupby('날짜').target.idxmax()]
+    t = pk.groupby('hour').agg(일수=('target', 'size'), 평균일최대=('target', 'mean'),
+                               평균기온=('temp', 'mean'), 평균생산=('prod', 'mean')).round(1)
+    t['비율(%)'] = (t.일수 / len(pk) * 100).round(1)
+    return t.sort_values('일수', ascending=False), len(pk)
+
+
 if __name__ == '__main__':
     X = build()
     X['ym'] = X['dt'].dt.to_period('M').astype(str)
@@ -113,4 +128,15 @@ if __name__ == '__main__':
     print(S.to_string(index=False))
     print('\n  → 800 이상에서는 생산을 더 해도 전력이 거의 오르지 않는다.')
     print('    피크 저감 모형의 결정변수를 생산량으로 두면 안 되는 이유다 (인수인계 [2] 4순위).')
-    print(f'\n→ {OUT_CORR}\n→ {OUT_HOUR}\n→ {OUT_SAT}')
+
+    W, nday = when_table(X)
+    W.to_csv(OUT_WHEN, encoding='utf-8-sig')
+    print(f'\n[4] 일 최대는 몇 시에 나는가 (가동일 {nday}일) — 인수인계 [2] 2순위 근거')
+    print(W.head(8).to_string())
+    top4 = sorted(W.head(4).index)
+    share = W.head(4)['비율(%)'].sum()
+    print(f'\n  → 상위 4개 시각 {top4} 에 {share:.0f}% 가 몰린다.')
+    print('    이 시간대의 기동을 계단식으로 늦추면 생산 총량을 건드리지 않고 월 최대를 낮출 수 있다.')
+    print('    단 8시와 11시 두 봉우리가 어떤 설비 동작인지는 데이터만으로는 알 수 없다')
+    print('    → 현장 확인이 필요하므로 보고서에는 "제안" 으로 쓴다.')
+    print(f'\n→ {OUT_CORR}\n→ {OUT_HOUR}\n→ {OUT_SAT}\n→ {OUT_WHEN}')

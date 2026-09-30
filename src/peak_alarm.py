@@ -61,6 +61,31 @@ def evaluate(r, thr, label, q):
             '일_경보수': int(dtp + dfp), '일_위험일': int(dtp + dfn)}
 
 
+def hour_check(X, r):
+    """"그날 몇 시가 최대인가"를 모델이 맞힐 수 있는가.
+
+    맞힐 수 없다는 것이 결론이다 (14-4). 경보를 한 시각으로 단정하면 안 되는 근거라
+    수치를 남겨 둔다. 비교 대상은 학습 구간에서 가장 흔했던 피크 시각을 그냥 찍는 규칙이다.
+    """
+    A = r.copy()
+    for c in ('hour', '날짜', 'is_off'):
+        A[c] = X.loc[A.index, c].values
+    A = A[~A.is_off.astype(bool)]
+    g = A.groupby('날짜')
+    ah = g.apply(lambda s: s.loc[s.y.idxmax(), 'hour'], include_groups=False)
+    ph = g.apply(lambda s: s.loc[s.p.idxmax(), 'hour'], include_groups=False)
+    trh = X[X.train_ok_strict & ~X.is_off]
+    prior = trh.loc[trh.groupby('날짜').target.idxmax(), 'hour'].value_counts()
+    top1, blk = prior.index[0], sorted(prior.index[:4])
+    return pd.DataFrame([
+        {'방법': '모델이 찍은 시각', '적중률(%)': round((ph == ah).mean() * 100, 1),
+         '±2시간(%)': round(((ph - ah).abs() <= 2).mean() * 100, 1)},
+        {'방법': f'규칙: 무조건 {top1}시', '적중률(%)': round((ah == top1).mean() * 100, 1),
+         '±2시간(%)': round(((ah - top1).abs() <= 2).mean() * 100, 1)},
+        {'방법': f'규칙: {blk[0]} to {blk[-1]}시 블록 포함', '적중률(%)': round(ah.isin(blk).mean() * 100, 1),
+         '±2시간(%)': np.nan}]), len(ah), blk
+
+
 if __name__ == '__main__':
     X = build()
     X['ym'] = X['dt'].dt.to_period('M').astype(str)
@@ -101,4 +126,12 @@ if __name__ == '__main__':
     ok = (D.경보 == D.실제초과).mean() * 100
     print(f'\n[일 단위 경보표] {len(D)}일 중 경보/실제가 일치한 날 {ok:.1f}%')
     print(D.head(12).to_string())
+
+    # ★ 경보를 "몇 시"로 단정하면 안 되는 이유
+    Hc, nday, blk = hour_check(X, preds['점 예측 (강화 최종)'])
+    print(f'\n[피크 "시각" 은 맞힐 수 있는가]  가동일 {nday}일')
+    print(Hc.to_string(index=False))
+    print('  → 모델이 찍은 시각은 학습 구간 최빈값을 그냥 찍는 규칙보다 정확하지 않다.')
+    print(f'    하루 안에서 어느 시각이 최대가 될지는 지금 피처로 구분되지 않는다.')
+    print(f'    따라서 경보는 "몇 시"가 아니라 "그날 위험한가"와 "{blk[0]} to {blk[-1]}시 시간대"로 낸다.')
     print(f'\n→ {OUT_EVAL}\n→ {OUT_DAYS}')

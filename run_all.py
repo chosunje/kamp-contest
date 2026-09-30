@@ -25,6 +25,7 @@ STEPS = [
     ('피크 경보 검증', 'peak_alarm.py'),
     ('성능 체감 그림', 'viz_perf.py'),
     ('1주 앞 예측 + 피크 경보', 'forecast.py'),
+    ('테스트 예측 파일 생성', 'predict_test.py'),
 ]
 
 
