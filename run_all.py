@@ -21,8 +21,10 @@ STEPS = [
     ('모델 비교 실험', 'model.py'),
     ('예측오차 분석', 'error_analysis.py'),
     ('영향요인 분석 (SHAP)', 'shap_analysis.py'),
+    ('최대피크 위험조건 분석', 'peak_driver.py'),
+    ('피크 경보 검증', 'peak_alarm.py'),
     ('성능 체감 그림', 'viz_perf.py'),
-    ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
+    ('1주 앞 예측 + 피크 경보', 'forecast.py'),
 ]
 
 

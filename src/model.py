@@ -230,15 +230,23 @@ FIX = {
                                     peak_w=3.0),
 }
 
-# ── 위 실험으로 고른 최종 설정 ────────────────────────────────────────────
-# 35번. 기준(8번) 대비 MAE 는 같고 RMSE·peakMAE·공휴일 오차가 모두 낮다 (12-4)
-FINAL_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params=TINY, peak_w=PEAK_W)
-# 36번. MAE 만 놓고 보면 가장 낮지만 피크는 덜 잡는다. 지표 우선순위(D10) 확정 전까지 같이 본다
-ALT_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params={**SHALLOW, **SLOW})
+# ── 위 실험으로 고른 최종 설정 (CORE 기준으로 다시 고름, [17] 13-2) ──────────
+# ★ 32·35·36·39·43 은 서로 흔들림 안쪽이라 사실상 동률이다. 어느 조합을 고르는지는
+#   중요하지 않고, 공통 재료인 "얕은 나무 + 피크행 가중치"가 효과의 실체다.
+#   그중 세 지표가 모두 기준보다 낫고 RMSE 가 가장 낮은 43번을 대표로 쓴다.
+FINAL_CFG = dict(BASE, **BEST, clone_w=CLONE_W, peak_w=PEAK_W,
+                 params={**SHALLOW, **SLOW, 'feature_fraction': 0.6})
+# 33번. 피크를 우선한다면 이쪽 (peakMAE 11.23 / MAE 는 기준보다 여전히 낮다)
+ALT_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
+# 분위 0.9. 점 예측용이 아니다 (MAE 14.12 로 나쁘다). 피크 경보의 "상한선" 전용이다.
+# peakMAE 8.13 으로 모든 설정 중 압도적으로 낮다 → 인수인계 [2] 1순위 경보에 쓴다
+ALARM_CFG = dict(BASE, **BEST, clone_w=CLONE_W,
+                 params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.9})
 
 # 강화 실험 결과를 본 실험표에도 올려 둔다 (run_all.py 는 --fix 없이 돌기 때문에)
-RUNS['★ 강화 최종 (아주얕은나무+피크가중)'] = FINAL_CFG
-RUNS['★ 강화 대안 (얕은나무+느린학습)'] = ALT_CFG
+RUNS['★ 강화 최종 (얕은나무+느린학습+피크가중)'] = FINAL_CFG
+RUNS['★ 강화 대안 (피크 우선)'] = ALT_CFG
+RUNS['★ 경보 상한 (분위 0.9)'] = ALARM_CFG
 
 
 def summarize(res, fold_key):
