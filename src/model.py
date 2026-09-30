@@ -1,9 +1,11 @@
 """예측 모델. 검증 규약은 baseline.py 와 동일하다 (D12: 시간순 롤링 폴드).
   학습 = 검증월 이전 전체 / 평가 = 고유일만 (복제일을 평가에 넣으면 점수가 부풀려진다)
-  개발 폴드는 5 to 8월. 9월은 최종 확인용으로 남겨둔다 (--final 로 한 번만 확인).
-  같은 5 to 8월 기준 베이스라인 lag168 은 MAE 26.8 / RMSE 52.5 / peakMAE 44.6
+  판단은 CORE(7 to 9월) 기준으로 한다 (D22). 5 to 9월 수치도 함께 내되 결론은 CORE 로 쓴다.
+  목표선 = 작업내역 [9] 고유일 베이스라인: MAE 23.6 / RMSE 35.3 / peakMAE 35.5
+           (baseline.py 가 BASE['train_flag'] 를 따라가므로 학습 행을 바꾸면 목표선도 바뀐다)
 
-실행: python src/model.py  →  outputs/model_results.csv
+실행: python src/model.py         →  outputs/model_results.csv       설정 비교 (본 실험표)
+      python src/model.py --fix   →  outputs/model_results_fix.csv   약점 공략 실험
 """
 import sys
 import numpy as np, pandas as pd, lightgbm as lgb
@@ -17,10 +19,11 @@ from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'model_results.csv'
 OUT_FIX = ROOT / 'outputs' / 'model_results_fix.csv'
-# 개발 폴드는 5 to 8월만 쓰고 9월(9/1 to 9/14)은 최종 확인용으로 남겨둔다 (팀 결정 D17).
-# 설정을 고르는 동안 9월을 보면, 마지막에 진짜 실력을 확인할 데이터가 남지 않는다.
-FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08']
-FINAL_FOLD = '2021-09'
+FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
+# 7 to 9월은 전부 고유일이고 테스트 구간(9/15 이후 추정)과 성격이 같다.
+# 5월은 학습이 4개월뿐인 데다 그 대부분이 복제일이라 평균을 끌어올린다 → 두 기준을 함께 본다
+CORE_FOLDS = ['2021-07', '2021-08', '2021-09']
+CORE = 'CORE(7 to 9월)'
 SEEDS = (0, 1, 2)    # 같은 설정을 시드만 바꿔 여러 번 돌린다 (차이가 흔들림보다 큰지 보려고)
 CLONE_W = 0.3        # clone='weight' 일 때 복제일에 줄 가중치
 NEEDS_FILL = {'rf'}  # 결측을 직접 못 다루는 모델. 트리라서 -999 로 채우면 분기로 갈라낸다
@@ -32,7 +35,7 @@ BASE = dict(cols=FEATURES['full'], model='lgbm', train_flag='train_ok_strict', c
 
 RUNS = {
     '0 기준 (lgbm·full·strict·keep)': {},
-    # 축 1. 복제일 처리 (D07 미결) — 161일을 어떻게 다룰 것인가
+    # 축 1. 복제일 처리 (D07 잠정 0.3) — 161일을 어떻게 다룰 것인가
     '1 복제일 학습 제외':             dict(clone='drop'),
     f'2 복제일 가중치 {CLONE_W}':      dict(clone='weight'),
     # 축 2. 학습 행 (작업내역(조선제).txt [3] 보강 1) — 생산기록 누락 의심일 15일을 뺄 것인가
@@ -68,64 +71,6 @@ RUNS = {
     '16 no_plan 조합':                dict(clone='weight', clone_w=0.1, cols=FEATURES['h7_no_plan']),
 }
 
-# ── 2차 강화: 오차 분석에서 찾은 두 약점을 정면으로 공략한다 ─────────────────
-#   약점 A 공휴일 과대예측  공휴일 MAE 36.7 vs 비공휴일 7.6 (작업내역(조선제).txt [16] 12-1)
-#   약점 B 피크 과소예측    실제 180 이상 구간에서 평균 +19.2 낮게 본다
-# 기준은 8번 조합(현재 최고). 여기서 한 가지씩만 바꿔 효과를 잰다.
-BEST = dict(clone='weight', cols=FEATURES['h7_full'])
-# 실험으로 고른 나무 설정 (12-3). 기본값(num_leaves 31)은 이 데이터에 비해 너무 컸다
-SHALLOW = {'num_leaves': 15, 'min_data_in_leaf': 40}
-TINY = {'num_leaves': 7, 'min_data_in_leaf': 60}
-SLOW = {'learning_rate': 0.02, 'n_estimators': 1200}
-PEAK_W = 3.0
-FIX = {
-    '17 [기준] 8번 조합': dict(BEST),
-    # ── 약점 B: 피크 ──────────────────────────────────────────────────────
-    # B-1 목적함수. l1 은 "중앙값"을 맞추므로 높은 쪽을 깎는다.
-    #     l2 는 평균, quantile(alpha>0.5)은 위쪽 분위를 맞춰 예측을 끌어올린다
-    '18 목적함수 l2':      dict(BEST, params={'objective': 'l2'}),
-    '19 분위 0.6':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.6}),
-    '20 분위 0.7':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.7}),
-    # B-2 피크 행 가중치. 상위 5% 행을 더 무겁게 학습시킨다
-    '21 피크행 가중 3배':  dict(BEST, peak_w=3.0),
-    '22 피크행 가중 6배':  dict(BEST, peak_w=6.0),
-    # B-3 Ridge. 트리와 달리 학습 최대값 밖으로도 예측할 수 있다 (팀원 관찰: 피크 MAE 12.7)
-    '23 Ridge 단독':       dict(BEST, model='ridge'),
-    '24 LGBM+Ridge 5:5':   dict(BEST, model='lgbm+ridge'),
-    '25 LGBM+Ridge 7:3':   dict(BEST, model='lgbm:0.7+ridge:0.3'),
-    # ── 약점 A: 공휴일 ────────────────────────────────────────────────────
-    # A-1 상호작용 피처. "공휴일 & 생산 있음" 을 나무가 찾지 않아도 되게 직접 넣는다
-    '26 공휴일 피처':      dict(BEST, cols=FEATURES['h7_full_hol']),
-    # A-2 공휴일 행 가중치. 학습 구간에 2일뿐이라 묻히는 것을 막는다
-    '27 공휴일 가중 5배':  dict(BEST, hol_w=5.0),
-    '28 공휴일 피처+가중': dict(BEST, cols=FEATURES['h7_full_hol'], hol_w=5.0),
-    # ── 하이퍼파라미터 (여기까지 전부 기본값이었다) ────────────────────────
-    '29 나무 더 깊게':     dict(BEST, params={'num_leaves': 63, 'min_data_in_leaf': 10}),
-    '30 나무 더 얕게':     dict(BEST, params=SHALLOW),
-    '31 천천히 오래':      dict(BEST, params=SLOW),
-    # ── 여기서 효과가 있던 것끼리 합쳐 본다 (얕은 나무 · 피크 가중 · 느린 학습) ──
-    '32 얕게+피크3':        dict(BEST, params=SHALLOW, peak_w=3.0),
-    '33 얕게+피크6':        dict(BEST, params=SHALLOW, peak_w=6.0),
-    '34 아주 얕게':         dict(BEST, params=TINY),
-    '35 아주얕게+피크3':     dict(BEST, params=TINY, peak_w=3.0),
-    '36 얕게+천천히':       dict(BEST, params={**SHALLOW, **SLOW}),
-    '37 얕게+피크3+공휴일':  dict(BEST, params=SHALLOW, peak_w=3.0, cols=FEATURES['h7_full_hol']),
-    '38 얕게+분위0.6':      dict(BEST, params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.6}),
-    '39 얕게+천천히+피크3':   dict(BEST, params={**SHALLOW, **SLOW}, peak_w=3.0),
-    '40 얕게+천천히+피크6':   dict(BEST, params={**SHALLOW, **SLOW}, peak_w=6.0),
-    '41 아주얕게+천천히+피크3': dict(BEST, params={**TINY, **SLOW}, peak_w=3.0),
-    '42 아주얕게+천천히':     dict(BEST, params={**TINY, **SLOW}),
-    '43 얕게+천천히+피크3+ff6': dict(BEST, params={**SHALLOW, **SLOW, 'feature_fraction': 0.6},
-                                    peak_w=3.0),
-}
-
-# ── 위 실험으로 고른 최종 설정 ────────────────────────────────────────────
-# 35번. 기준(8번) 대비 MAE 는 같고 RMSE·peakMAE·공휴일 오차가 모두 낮다 (12-4)
-FINAL_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params=TINY, peak_w=PEAK_W)
-# 36번. MAE 만 놓고 보면 가장 낮지만 피크는 덜 잡는다. 지표 우선순위(D10) 확정 전까지 같이 본다
-ALT_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params={**SHALLOW, **SLOW})
-
-
 LGBM_BASE = dict(objective='l1', n_estimators=400, learning_rate=.05, num_leaves=31,
                  min_data_in_leaf=20, feature_fraction=.8, bagging_fraction=.8,
                  bagging_freq=1, verbose=-1)
@@ -140,7 +85,7 @@ def make_model(name, seed=0, params=None):
         return RandomForestRegressor(**{'n_estimators': 300, 'min_samples_leaf': 5,
                                         'n_jobs': -1, **p, 'random_state': seed})
     if name == 'ridge':
-        # 선형 모델이라 학습에서 본 최대값을 넘는 값도 낼 수 있다 (트리는 못 한다) → 피크 담당.
+        # 선형 모델이라 학습에서 본 최대값을 넘는 값도 낼 수 있다 (트리는 못 한다).
         # 결측은 중앙값으로 메우고 (트리처럼 -999 를 넣으면 직선이 망가진다) 스케일을 맞춘다.
         return make_pipeline(SimpleImputer(strategy='median'), StandardScaler(),
                              Ridge(**{'alpha': 10.0, **p}))
@@ -167,7 +112,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
     model      모델 이름. '+' 로 이으면 예측을 평균낸다 ('lgbm+ridge').
                'lgbm:0.7+ridge:0.3' 처럼 뒤에 가중치를 붙일 수도 있다
     train_flag 학습에 쓸 행 (train_ok 또는 train_ok_strict)
-    clone      복제일 처리 (D07 미결). keep 그대로 / drop 학습 제외 / weight 가중치 하향
+    clone      복제일 처리. keep 그대로 / drop 학습 제외 / weight 가중치 하향
     clone_w    clone='weight' 일 때 복제일에 줄 가중치. 1.0 이면 keep 과 같고 0 에 가까울수록 drop 에 가깝다
     params     모델별 설정 덮어쓰기. {'lgbm': {...}} 형태이거나 단일 모델이면 {...} 그대로
     peak_w     학습 구간 상위 peak_q 분위 행에 곱할 가중치 (피크 과소예측 대응)
@@ -213,7 +158,7 @@ def score(s):
 
 
 def run_all(X, runs, base, seeds=SEEDS, folds=None):
-    """설정 여러 개를 시드별로 돌려 폴드별 + 합산(ALL) 성적표를 만든다.
+    """설정 여러 개를 시드별로 돌려 폴드별 + 합산(ALL) + CORE 성적표를 만든다.
     각 run 은 base 에서 지정한 항목만 덮어쓴 것이다 (= 한 번에 한 가지만 다르다)."""
     rows = []
     for name, over in runs.items():
@@ -221,6 +166,9 @@ def run_all(X, runs, base, seeds=SEEDS, folds=None):
         for sd in seeds:
             P = rolling_eval(X, seed=sd, folds=folds, **kw)
             rows.append({'run': name, 'seed': sd, 'fold': 'ALL', **score(P)})
+            core = P[P.fold.isin(CORE_FOLDS)]
+            if len(core):
+                rows.append({'run': name, 'seed': sd, 'fold': CORE, **score(core)})
             for f, s in P.groupby('fold'):
                 rows.append({'run': name, 'seed': sd, 'fold': f, **score(s)})
     res = pd.DataFrame(rows)
@@ -228,47 +176,101 @@ def run_all(X, runs, base, seeds=SEEDS, folds=None):
     return res
 
 
+# ── 약점 공략 실험 (작업내역(조선제).txt [16] 12단계 / [17] 13단계) ──────────
+#   약점 A 공휴일 과대예측  공휴일 MAE 가 비공휴일의 5배
+#   약점 B 피크 과소예측    실제가 높을수록 더 낮게 본다
+# 기준은 8번 조합. 여기서 한 가지씩만 바꿔 효과를 잰다.
+BEST = dict(clone='weight', cols=FEATURES['h7_full'])
+# 실험으로 고른 나무 설정 (12-3). 기본값(num_leaves 31)은 이 데이터에 비해 너무 컸다
+SHALLOW = {'num_leaves': 15, 'min_data_in_leaf': 40}
+TINY = {'num_leaves': 7, 'min_data_in_leaf': 60}
+SLOW = {'learning_rate': 0.02, 'n_estimators': 1200}
+PEAK_W = 3.0
+
+FIX = {
+    '17 [기준] 8번 조합': dict(BEST),
+    # ── 약점 B: 피크 ──────────────────────────────────────────────────────
+    # B-1 목적함수. l1 은 "중앙값"을 맞추므로 높은 쪽을 깎는다.
+    #     l2 는 평균, quantile(alpha>0.5)은 위쪽 분위를 맞춰 예측을 끌어올린다
+    '18 목적함수 l2':      dict(BEST, params={'objective': 'l2'}),
+    '19 분위 0.6':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.6}),
+    '20 분위 0.7':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.7}),
+    # 진행 순서 1번(인수인계 [3])이 요구한 분위수 0.9 도 같이 잰다
+    '20b 분위 0.9':        dict(BEST, params={'objective': 'quantile', 'alpha': 0.9}),
+    # B-2 피크 행 가중치. 상위 5% 행을 더 무겁게 학습시킨다
+    '21 피크행 가중 3배':  dict(BEST, peak_w=3.0),
+    '22 피크행 가중 6배':  dict(BEST, peak_w=6.0),
+    # B-3 Ridge. 트리와 달리 학습 최대값 밖으로도 예측할 수 있다 (팀원 관찰: 피크 MAE 12.7)
+    '23 Ridge 단독':       dict(BEST, model='ridge'),
+    '24 LGBM+Ridge 5:5':   dict(BEST, model='lgbm+ridge'),
+    '25 LGBM+Ridge 7:3':   dict(BEST, model='lgbm:0.7+ridge:0.3'),
+    # ── 약점 A: 공휴일 ────────────────────────────────────────────────────
+    # A-1 상호작용 피처. "공휴일 & 생산 있음" 을 나무가 찾지 않아도 되게 직접 넣는다
+    '26 공휴일 피처':      dict(BEST, cols=FEATURES['h7_full_hol']),
+    # A-2 공휴일 행 가중치. 학습 구간에 2일뿐이라 묻히는 것을 막는다
+    '27 공휴일 가중 5배':  dict(BEST, hol_w=5.0),
+    '28 공휴일 피처+가중': dict(BEST, cols=FEATURES['h7_full_hol'], hol_w=5.0),
+    # ── 하이퍼파라미터 (여기까지 전부 기본값이었다) ────────────────────────
+    '29 나무 더 깊게':     dict(BEST, params={'num_leaves': 63, 'min_data_in_leaf': 10}),
+    '30 나무 더 얕게':     dict(BEST, params=SHALLOW),
+    '31 천천히 오래':      dict(BEST, params=SLOW),
+    # ── 여기서 효과가 있던 것끼리 합쳐 본다 (얕은 나무 · 피크 가중 · 느린 학습) ──
+    '32 얕게+피크3':        dict(BEST, params=SHALLOW, peak_w=3.0),
+    '33 얕게+피크6':        dict(BEST, params=SHALLOW, peak_w=6.0),
+    '34 아주 얕게':         dict(BEST, params=TINY),
+    '35 아주얕게+피크3':     dict(BEST, params=TINY, peak_w=3.0),
+    '36 얕게+천천히':       dict(BEST, params={**SHALLOW, **SLOW}),
+    '37 얕게+피크3+공휴일':  dict(BEST, params=SHALLOW, peak_w=3.0, cols=FEATURES['h7_full_hol']),
+    '38 얕게+분위0.6':      dict(BEST, params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.6}),
+    '39 얕게+천천히+피크3':   dict(BEST, params={**SHALLOW, **SLOW}, peak_w=3.0),
+    '40 얕게+천천히+피크6':   dict(BEST, params={**SHALLOW, **SLOW}, peak_w=6.0),
+    '41 아주얕게+천천히+피크3': dict(BEST, params={**TINY, **SLOW}, peak_w=3.0),
+    '42 아주얕게+천천히':     dict(BEST, params={**TINY, **SLOW}),
+    '43 얕게+천천히+피크3+ff6': dict(BEST, params={**SHALLOW, **SLOW, 'feature_fraction': 0.6},
+                                    peak_w=3.0),
+}
+
+# ── 위 실험으로 고른 최종 설정 ────────────────────────────────────────────
+# 35번. 기준(8번) 대비 MAE 는 같고 RMSE·peakMAE·공휴일 오차가 모두 낮다 (12-4)
+FINAL_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params=TINY, peak_w=PEAK_W)
+# 36번. MAE 만 놓고 보면 가장 낮지만 피크는 덜 잡는다. 지표 우선순위(D10) 확정 전까지 같이 본다
+ALT_CFG = dict(BASE, **BEST, clone_w=CLONE_W, params={**SHALLOW, **SLOW})
+
 # 강화 실험 결과를 본 실험표에도 올려 둔다 (run_all.py 는 --fix 없이 돌기 때문에)
 RUNS['★ 강화 최종 (아주얕은나무+피크가중)'] = FINAL_CFG
 RUNS['★ 강화 대안 (얕은나무+느린학습)'] = ALT_CFG
 
-# --final 로 9월을 확인할 때 평가할 후보. 모든 선택이 끝난 뒤 한 번만 돌린다
-FINALISTS = {k: RUNS[k] for k in ['0 기준 (lgbm·full·strict·keep)', '8 조합 (가중치+1주앞)',
-                                  '★ 강화 최종 (아주얕은나무+피크가중)',
-                                  '★ 강화 대안 (얕은나무+느린학습)']}
+
+def summarize(res, fold_key):
+    """폴드 합산 성적표를 설정별로 모아 준다 (시드 평균 + 시드 간 흔들림)."""
+    a = res[res.fold == fold_key]
+    g = a.groupby('run', sort=False).agg(MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'),
+                                         RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean'),
+                                         n=('n', 'first'))
+    g['기준대비'] = g.MAE - g.MAE.iloc[0]
+    return g[['MAE', '흔들림', '기준대비', 'RMSE', 'peakMAE', 'n']]
 
 
 if __name__ == '__main__':
     X = build()
     X['ym'] = X['dt'].dt.to_period('M').astype(str)
 
-    if '--final' in sys.argv:
-        # 최종 확인: 미개봉으로 남겨둔 9월에서 후보를 한 번만 평가한다.
-        # 여기 숫자를 보고 설정을 다시 고르면 9월도 개발 데이터가 되어 버리므로 그러지 말 것.
-        f = run_all(X, FINALISTS, BASE, folds=[FINAL_FOLD])
-        g = f[f.fold == 'ALL'].groupby('run', sort=False).agg(
-            MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'), RMSE=('RMSE', 'mean'),
-            peakMAE=('peakMAE', 'mean'), n=('n', 'first'))
-        print(f'[최종 확인] {FINAL_FOLD} · 고유일 · 시드 {list(SEEDS)} 평균')
-        print(g.round(2).to_string())
-        print('\n※ 이 결과를 보고 설정을 바꾸면 9월이 더 이상 미개봉이 아니게 된다.')
-        raise SystemExit
-
-    # --fix : 오차 분석에서 찾은 약점(공휴일·피크)을 공략하는 2차 실험만 돌린다
+    # --fix : 오차 분석에서 찾은 약점(공휴일·피크)을 공략하는 실험만 돌린다
     runs, out = (FIX, OUT_FIX) if '--fix' in sys.argv else (RUNS, OUT)
     res = run_all(X, runs, BASE)
     res.to_csv(out, index=False, encoding='utf-8-sig')
 
-    a = res[res.fold == 'ALL']
-    g = a.groupby('run', sort=False).agg(MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'),
-                                         RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean'),
-                                         n=('n', 'first'))
-    g['기준대비'] = g.MAE - g.MAE.iloc[0]
-    print(f'[폴드 합산] 고유일 기준 · 시드 {list(SEEDS)} 평균')
-    print(g[['MAE', '흔들림', '기준대비', 'RMSE', 'peakMAE', 'n']].round(2).to_string())
+    g = summarize(res, 'ALL')
+    print(f'[폴드 합산 5 to 9월] 고유일 기준 · 시드 {list(SEEDS)} 평균')
+    print(g.round(2).to_string())
+
+    # ★ 테스트 구간과 성격이 같은 7 to 9월만 따로 본다 (5월은 학습량 부족 + 복제일 편중)
+    print(f'\n★ [{CORE} 기준] 테스트 구간과 성격이 같은 구간 · 이 표를 우선 본다')
+    print(summarize(res, CORE).round(2).to_string())
+
     print('\n[폴드별 MAE] (시드 평균)')
-    print(res[res.fold != 'ALL'].pivot_table(index='run', columns='fold', values='MAE',
-                                             aggfunc='mean', sort=False).round(1).to_string())
+    print(res[~res.fold.isin(['ALL', CORE])].pivot_table(index='run', columns='fold', values='MAE',
+                                                         aggfunc='mean', sort=False).round(1).to_string())
     # 학습 행이 모자라 폴드가 통째로 건너뛰어지면 평가 행 수가 달라져 비교가 성립하지 않는다
     bad = g[g.n != g.n.iloc[0]]
     if len(bad):
@@ -278,6 +280,8 @@ if __name__ == '__main__':
             print(f'       {r}: {v}행 (기준 {g.n.iloc[0]}행)')
         print('       → 공통 폴드(NaN 아닌 열)끼리만 비교할 것')
 
-    print('\n목표선 (고유일 베이스라인): MAE 23.6 / RMSE 37.6 / peakMAE 37.1')
+    print('\n목표선 (고유일 베이스라인, src/baseline.py)')
+    print('  5 to 9월      MAE 23.6 / RMSE 35.3 / peakMAE 35.5')
+    print(f'  {CORE}  MAE 22.9 / RMSE 35.1 / peakMAE 35.7  ← 이 기준을 우선 본다')
     print('판단 기준: "기준대비" 차이가 "흔들림"보다 작으면 차이 없다고 본다')
     print('→', out)

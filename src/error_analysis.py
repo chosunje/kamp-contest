@@ -1,113 +1,300 @@
-"""영향요인 분석과 예측오차 다발 조건 분석 (배점 3번: 영향요인 및 오류분석 15점).
+"""최종 후보 모델의 예측오차 다발 조건 분석.
 
-  과제 요구사항 ② "예측오차가 크게 발생하는 생산조건 분석" 에 대응한다.
-  최종 후보 설정으로 시간순 롤링 폴드 예측을 만든 뒤, 그 오차를 조건별로 쪼개 본다.
-  영향요인은 SHAP(각 피처가 예측값을 얼마나 밀어올리거나 내렸는지)으로 본다.
+기준 모델
+- 피처: h7_full (1주 앞에서도 사용 가능한 피처)
+- 학습: train_ok_strict
+- 복제일: sample_weight=0.3
+- 모델: LightGBM, model.py의 SEEDS 예측값 평균(간단 앙상블)
+- 평가: model.py와 동일한 시간순 롤링 폴드 + 고유일 & train_ok
 
-실행: python src/error_analysis.py
-출력: outputs/error_rows.csv       행 단위 예측·오차 (조건 분석 원자료)
-      outputs/error_by_cond.csv    조건별 오차 집계
-      outputs/shap_importance.csv  피처별 SHAP 중요도
+주의
+- model_results.csv의 8번 수치(MAE 약 8.77)는 "시드별 지표의 평균"이다.
+- 이 스크립트는 행별 예측값을 시드 평균한 뒤 오차를 계산하므로 MAE가 약 8.52로 더 낮다.
+  즉 오류분석에는 실제 앙상블 예측을 사용하며, 둘은 같은 계산이 아니다.
+
+출력
+- outputs/error_predictions.csv       행 단위 OOF 예측/오차
+- outputs/error_by_condition.csv     조건별 오차 요약
+- outputs/error_by_date.csv          날짜별 오차 요약
+- outputs/error_top_cases.csv        절대오차 상위 사례
+- outputs/error_summary.txt          보고서용 핵심 요약
+
+실행:
+    python src/error_analysis.py
 """
-import numpy as np, pandas as pd, shap
+import numpy as np
+import pandas as pd
+
 from features import build, FEATURES
-from model import make_model, rolling_eval, FINAL_CFG
+from model import FOLDS, CORE_FOLDS, CORE, SEEDS, make_model
 from preprocess import ROOT
 
-OUT_ROWS = ROOT / 'outputs' / 'error_rows.csv'
-OUT_COND = ROOT / 'outputs' / 'error_by_cond.csv'
-OUT_SHAP = ROOT / 'outputs' / 'shap_importance.csv'
+OUT_PRED = ROOT / 'outputs' / 'error_predictions.csv'
+OUT_COND = ROOT / 'outputs' / 'error_by_condition.csv'
+OUT_DATE = ROOT / 'outputs' / 'error_by_date.csv'
+OUT_TOP = ROOT / 'outputs' / 'error_top_cases.csv'
+OUT_SUMMARY = ROOT / 'outputs' / 'error_summary.txt'
 
-# 최종 설정은 model.py 한 곳에서만 정의한다 (35번: 1주 앞 피처 + 복제일 가중치 0.3
-# + strict + 아주 얕은 나무 + 피크행 가중 3배). 근거는 작업내역(조선제).txt [16] 12단계
-FINAL = FINAL_CFG
-
-
-def predict_rows(X, seeds=(0, 1, 2)):
-    """롤링 폴드 예측을 시드별로 만들어 평균낸다. 행 단위 오차를 돌려준다."""
-    parts = [rolling_eval(X, seed=s, **FINAL).set_index('idx') for s in seeds]
-    p = pd.concat([q.p for q in parts], axis=1).mean(axis=1)
-    r = parts[0][['fold', 'y', 'peak']].copy()
-    r['p'] = p
-    r['err'] = r.y - r.p                 # 양수 = 과소예측 (실제가 더 높았다)
-    r['abs_err'] = r.err.abs()
-    return X.loc[r.index].join(r[['fold', 'y', 'p', 'err', 'abs_err', 'peak']])
+COLS = FEATURES['h7_full']
+MODEL = 'lgbm'
+TRAIN_FLAG = 'train_ok_strict'
+CLONE_W = 0.3
 
 
-def by_cond(R):
-    """조건별 평균 오차를 한 표로 모은다. n 이 작은 조건은 참고용이므로 함께 싣는다."""
+def add_plan_window_features(X: pd.DataFrame) -> pd.DataFrame:
+    """생산계획만으로 알 수 있는 하루의 생산 시작/종료 위치를 분석용으로 붙인다.
+
+    모델 입력에는 넣지 않는다. 실제 실험에서 이 두 플래그를 h7_full에 직접 추가하면
+    전체 MAE가 소폭 악화되어 채택하지 않았다. 오류 조건 분석과 별도 후처리 실험에만 사용한다.
+    """
+    X = X.copy()
+    positive = X['prod'] > 0
+    first = X['hour'].where(positive).groupby(X['날짜']).transform('min')
+    last = X['hour'].where(positive).groupby(X['날짜']).transform('max')
+    has_plan = X['day_prod'] > 0
+    X['before_prod_start'] = (has_plan & (X['hour'] < first)).astype(int)
+    X['after_prod_end'] = (has_plan & (X['hour'] > last)).astype(int)
+    return X
+
+
+def rolling_predictions(X: pd.DataFrame) -> pd.DataFrame:
+    """model.py와 같은 평가셋에서 시드 평균 OOF 예측을 만든다."""
     rows = []
+    total = len(FOLDS)
+    for idx, fold in enumerate(FOLDS, 1):
+        va = X[(X['ym'] == fold) & X.train_ok & ~X.is_clone].copy()
+        if va.empty:
+            print(f'  [{idx}/{total}] {fold}: 평가 행이 없어 건너뜀', flush=True)
+            continue
+        tr = X[(X['dt'] < va['dt'].min()) & X[TRAIN_FLAG]].copy()
+        if len(tr) < 200:
+            print(f'  [{idx}/{total}] {fold}: 학습 행 {len(tr):,}개로 부족해 건너뜀', flush=True)
+            continue
 
-    def add(group, label, s):
-        g = R.groupby(s, observed=True)
-        d = g.agg(n=('abs_err', 'size'), MAE=('abs_err', 'mean'),
-                  평균오차=('err', 'mean'), 실제평균=('y', 'mean'))
-        for k, v in d.iterrows():
-            rows.append({'구분': group, '조건': f'{label}={k}', **v.round(2).to_dict()})
+        print(
+            f'  [{idx}/{total}] {fold}: 학습 {len(tr):,}행 / 평가 {len(va):,}행 / '
+            f'시드 {len(SEEDS)}개 학습 시작',
+            flush=True,
+        )
+        w = np.where(tr.is_clone, CLONE_W, 1.0)
+        preds = []
+        for seed in SEEDS:
+            g = make_model(MODEL, seed).fit(tr[COLS], tr.target, sample_weight=w)
+            preds.append(g.predict(va[COLS]))
+        p = np.mean(preds, axis=0)
+        print(f'      {fold}: OOF 예측 완료', flush=True)
+        peak_thr = tr.target.quantile(.95)
 
-    add('시각', 'h', R.hour)
-    add('요일', 'dow', R.dow.map({1: '월', 2: '화', 3: '수', 4: '목', 5: '금', 6: '토', 7: '일'}))
-    add('교대 전환 시각', '7·12·17시', R.is_transition.map({1: '해당', 0: '그 외'}))
-    add('휴무 여부', 'is_off', R.is_off.map({1: '휴무', 0: '가동'}))
-    add('휴무 직후', 'after_off', R.after_off.map({1: '휴무 다음날', 0: '그 외'}))
-    add('직전 연속휴무', 'off_run_prev', pd.cut(R.off_run_prev, [-1, 0, 1, 2, 99],
-                                                labels=['0일', '1일', '2일', '3일 이상']))
-    add('생산량 구간', 'prod', pd.cut(R['prod'], [-1, 0, 300, 900, 99999],
-                                      labels=['0', '1-300', '300-900', '900+']))
-    add('생산0 고부하', 'prod=0 & 실제>100', ((R['prod'] == 0) & (R.y > 100)).map({True: '해당', False: '그 외'}))
-    add('기온 구간', 'temp', pd.cut(R.temp, [-20, 5, 15, 22, 26, 40],
-                                    labels=['~5', '5-15', '15-22', '22-26', '26+']))
-    add('피크 여부', 'peak', R.peak.map({True: '피크(상위5%)', False: '비피크'}))
-    add('생산량 급변', '|전시간 대비|', pd.cut(R.prod_diff.abs(), [-1, 100, 500, 1500, 99999],
-                                               labels=['0-100', '100-500', '500-1500', '1500+']))
-    return pd.DataFrame(rows)
+        keep = [
+            'dt', '날짜', 'target', 'target_max15', 'hour', 'dow', 'month',
+            'is_weekend', 'is_holiday', 'after_off', 'off_run_prev',
+            'days_since_off', 'shift', 'is_transition', 'is_off',
+            'prod', 'prod_cap', 'prod_zero', 'day_prod', 'day_prod_hours',
+            'before_prod_start', 'after_prod_end',
+            'temp', 'cool', 'humid', 'wind', 'rain',
+        ]
+        z = va[keep].copy()
+        z['fold'] = fold
+        z['pred'] = p
+        z['error'] = z.target - z.pred             # +면 과소예측
+        z['abs_error'] = z.error.abs()
+        z['sq_error'] = z.error ** 2
+        z['underpredict'] = z.error > 0
+        z['peak_threshold'] = peak_thr
+        z['is_peak'] = z.target >= peak_thr
+        rows.append(z)
+    return pd.concat(rows, ignore_index=True)
 
 
-def shap_importance(X, cols=None, seed=0):
-    """전체 학습 구간으로 한 번 학습해 SHAP 기여도를 본다 (전역 영향요인용)."""
-    cols = cols or FINAL['cols']
-    tr = X[X[FINAL['train_flag']]]
-    # 학습 가중치는 rolling_eval 과 똑같이 만든다 (복제일 하향 x 피크행 상향)
-    w = np.where(tr.is_clone, FINAL['clone_w'], 1.0)
-    w = w * np.where(tr.target >= tr.target.quantile(.95), FINAL.get('peak_w', 1.0), 1.0)
-    g = make_model(FINAL['model'], seed, FINAL.get('params')).fit(
-        tr[cols], tr.target, sample_weight=w)
-    sv = shap.TreeExplainer(g).shap_values(tr[cols])
-    imp = pd.Series(np.abs(sv).mean(axis=0), index=cols).sort_values(ascending=False)
-    return (imp / imp.sum() * 100).round(2), sv, tr[cols]
+def metrics(s: pd.DataFrame) -> dict:
+    if len(s) == 0:
+        return dict(n=0, MAE=np.nan, RMSE=np.nan, bias=np.nan,
+                    p90_abs_error=np.nan, under_rate=np.nan,
+                    peak_rate=np.nan, actual_mean=np.nan, pred_mean=np.nan)
+    return {
+        'n': len(s),
+        'MAE': s.abs_error.mean(),
+        'RMSE': np.sqrt(s.sq_error.mean()),
+        'bias': s.error.mean(),
+        'p90_abs_error': s.abs_error.quantile(.90),
+        'under_rate': s.underpredict.mean(),
+        'peak_rate': s.is_peak.mean(),
+        'actual_mean': s.target.mean(),
+        'pred_mean': s.pred.mean(),
+    }
+
+
+def add_group(out: list, P: pd.DataFrame, axis: str, series: pd.Series):
+    tmp = P.copy()
+    tmp['_group'] = series
+    for name, s in tmp.groupby('_group', observed=True, dropna=False):
+        out.append({'axis': axis, 'condition': str(name), **metrics(s)})
+
+
+def condition_table(P: pd.DataFrame) -> pd.DataFrame:
+    """보고서에서 바로 쓸 수 있도록 일반 그룹 + 핵심 가설 조건을 같은 표로 만든다."""
+    out = []
+
+    add_group(out, P, 'fold', P.fold)
+    # 테스트 구간과 성격이 같은 7 to 9월을 한 줄로 따로 남긴다 (5월은 학습량 부족 + 복제일 편중)
+    add_group(out, P, 'period', P.fold.isin(CORE_FOLDS).map({True: CORE, False: '5 to 6월'}))
+    add_group(out, P, 'month', P.month.map(lambda x: f'{int(x)}월'))
+    add_group(out, P, 'dow', P.dow.map({1:'월', 2:'화', 3:'수', 4:'목', 5:'금', 6:'토', 7:'일'}))
+    add_group(out, P, 'hour', P.hour.map(lambda x: f'{int(x):02d}시'))
+    add_group(out, P, 'shift', P['shift'].map({0:'야간', 1:'점심', 2:'주간'}))
+    add_group(out, P, 'transition', P.is_transition.map({0:'일반시각', 1:'전환시각(7·12·17시)'}))
+    add_group(out, P, 'after_off', P.after_off.map({0:'일반일', 1:'휴무 직후'}))
+    add_group(out, P, 'holiday', P.is_holiday.map({0:'비공휴일', 1:'법정공휴일'}))
+    add_group(out, P, 'after_prod_end', P.after_prod_end.map({0:'생산종료 이전/해당없음', 1:'마지막 생산시간 이후'}))
+
+    prod_band = pd.cut(
+        P['prod'], [-np.inf, 0, 300, 900, np.inf],
+        labels=['생산 0', '저생산(1~300)', '중생산(301~900)', '고생산(900+)'],
+        include_lowest=True,
+    )
+    add_group(out, P, 'production_band', prod_band)
+
+    temp_band = pd.cut(
+        P['temp'], [-np.inf, 22, 26, np.inf],
+        labels=['22℃ 이하', '22~26℃', '26℃ 초과'],
+        include_lowest=True,
+    )
+    add_group(out, P, 'temperature_band', temp_band)
+
+    off_band = pd.cut(
+        P['off_run_prev'], [-np.inf, 0, 1, 3, np.inf],
+        labels=['직전휴무 없음', '1일 휴무 후', '2~3일 휴무 후', '4일+ 휴무 후'],
+        include_lowest=True,
+    )
+    add_group(out, P, 'previous_off_run', off_band)
+
+    special = {
+        '전체': np.ones(len(P), dtype=bool),
+        '피크 구간(학습구간 상위5% 기준)': P.is_peak,
+        '생산0 & 실제전력>100': (P['prod'] == 0) & (P.target > 100),
+        '휴무 직후': P.after_off == 1,
+        '전환시각(7·12·17시)': P.is_transition == 1,
+        '고온 가동(기온>22℃ & 생산>0)': (P.temp > 22) & (P['prod'] > 0),
+        '고생산(900+)': P['prod'] > 900,
+        '주말': P.is_weekend == 1,
+        '법정공휴일': P.is_holiday == 1,
+        '마지막 생산시간 이후': P.after_prod_end == 1,
+        '공휴일 & 생산종료 이후': (P.is_holiday == 1) & (P.after_prod_end == 1),
+    }
+    for name, mask in special.items():
+        out.append({'axis': 'special', 'condition': name, **metrics(P[mask])})
+
+    R = pd.DataFrame(out)
+    R['n'] = R['n'].astype(int)
+    return R
+
+
+def date_table(P: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for d, s in P.groupby('날짜'):
+        row = {
+            '날짜': d,
+            'fold': s.fold.iloc[0],
+            'dow': int(s.dow.iloc[0]),
+            'is_holiday': int(s.is_holiday.iloc[0]),
+            'day_prod': float(s.day_prod.iloc[0]),
+            'after_prod_end_hours': int(s.after_prod_end.sum()),
+            **metrics(s),
+        }
+        rows.append(row)
+    R = pd.DataFrame(rows).sort_values('MAE', ascending=False)
+    R['n'] = R['n'].astype(int)
+    return R
+
+
+def main():
+    print('[예측오차 분석] 피처 생성 시작', flush=True)
+    X = add_plan_window_features(build())
+    X['ym'] = X['dt'].dt.to_period('M').astype(str)
+    print(f'[예측오차 분석] 피처 생성 완료: {len(X):,}행 / OOF 예측 시작', flush=True)
+    P = rolling_predictions(X)
+    print(f'[예측오차 분석] OOF 예측 완료: {len(P):,}행 / 조건별 통계 집계 시작', flush=True)
+
+    q90 = P.abs_error.quantile(.90)
+    P['large_error'] = P.abs_error >= q90
+
+    C = condition_table(P)
+    D = date_table(P)
+    top_cols = [
+        'dt', '날짜', 'fold', 'hour', 'dow', 'target', 'pred', 'error', 'abs_error',
+        'is_peak', 'prod', 'day_prod', 'temp', 'is_holiday', 'after_off', 'off_run_prev',
+        'is_transition', 'after_prod_end', 'is_off',
+    ]
+    T = P.nlargest(100, 'abs_error')[top_cols].copy()
+
+    OUT_PRED.parent.mkdir(parents=True, exist_ok=True)
+    P.to_csv(OUT_PRED, index=False, encoding='utf-8-sig')
+    C.to_csv(OUT_COND, index=False, encoding='utf-8-sig')
+    D.to_csv(OUT_DATE, index=False, encoding='utf-8-sig')
+    T.to_csv(OUT_TOP, index=False, encoding='utf-8-sig')
+
+    overall = metrics(P)
+    core = metrics(P[P.fold.isin(CORE_FOLDS)])
+    special = C[C.axis == 'special'].set_index('condition')
+    worst_hours = (C[C.axis == 'hour'].sort_values('MAE', ascending=False).head(5)
+                   [['condition', 'n', 'MAE', 'bias']])
+    worst_folds = (C[C.axis == 'fold'].sort_values('MAE', ascending=False)
+                   [['condition', 'n', 'MAE', 'RMSE', 'bias']])
+    worst_dates = D.head(8)[['날짜', 'fold', 'is_holiday', 'day_prod', 'MAE', 'RMSE', 'bias']]
+
+    lines = [
+        '==============================================================',
+        ' 최종 후보 모델 예측오차 분석',
+        '==============================================================',
+        f'모델: LightGBM / h7_full / {TRAIN_FLAG} / 복제일 가중치 {CLONE_W}',
+        f'시드: {list(SEEDS)} 예측값 평균 / 평가: 고유일 & train_ok / 폴드: {FOLDS}',
+        '',
+        f'[전체 5 to 9월] n={overall["n"]:,}  MAE={overall["MAE"]:.2f}  RMSE={overall["RMSE"]:.2f}  '
+        f'bias={overall["bias"]:+.2f}  |오차|90%={overall["p90_abs_error"]:.2f}',
+        f'과소예측 비율={overall["under_rate"]:.1%}  피크 비율={overall["peak_rate"]:.1%}',
+        '',
+        f'★ [{CORE}] 테스트 구간과 성격이 같은 구간 · 이 수치를 우선 본다',
+        f'   n={core["n"]:,}  MAE={core["MAE"]:.2f}  RMSE={core["RMSE"]:.2f}  '
+        f'bias={core["bias"]:+.2f}  |오차|90%={core["p90_abs_error"]:.2f}',
+        f'   (5월은 학습이 4개월뿐이고 그 대부분이 복제일이라 전체 평균을 끌어올린다)',
+        '',
+        '[핵심 조건]',
+    ]
+    for name in special.index:
+        r = special.loc[name]
+        lines.append(
+            f'- {name}: n={int(r.n):,}, MAE={r.MAE:.2f}, RMSE={r.RMSE:.2f}, '
+            f'bias={r.bias:+.2f}, 과소예측={r.under_rate:.1%}'
+        )
+    lines += ['', '[폴드별 오차]']
+    for _, r in worst_folds.iterrows():
+        lines.append(
+            f'- {r.condition}: n={int(r.n):,}, MAE={r.MAE:.2f}, RMSE={r.RMSE:.2f}, bias={r.bias:+.2f}'
+        )
+    lines += ['', '[MAE가 큰 시간대 상위 5개]']
+    for _, r in worst_hours.iterrows():
+        lines.append(f'- {r.condition}: n={int(r.n):,}, MAE={r.MAE:.2f}, bias={r.bias:+.2f}')
+    lines += ['', '[MAE가 큰 날짜 상위 8일]']
+    for _, r in worst_dates.iterrows():
+        lines.append(
+            f'- {int(r["날짜"])} ({r.fold}, 공휴일={int(r.is_holiday)}): '
+            f'일생산={r.day_prod:.0f}, MAE={r.MAE:.2f}, RMSE={r.RMSE:.2f}, bias={r.bias:+.2f}'
+        )
+    lines += [
+        '',
+        f'[대오차 기준] 전체 |오차| 상위 10% 임계값 = {q90:.2f}',
+        f'상위 100건 상세 → {OUT_TOP.name}',
+        f'행 단위 예측 → {OUT_PRED.name}',
+        f'조건별 표 → {OUT_COND.name}',
+        f'날짜별 표 → {OUT_DATE.name}',
+    ]
+    OUT_SUMMARY.write_text('\n'.join(lines), encoding='utf-8')
+
+    print('[예측오차 분석] 조건별 통계 및 파일 저장 완료', flush=True)
+    print('\n'.join(lines), flush=True)
+    for p in [OUT_PRED, OUT_COND, OUT_DATE, OUT_TOP, OUT_SUMMARY]:
+        print(f'→ {p}')
 
 
 if __name__ == '__main__':
-    X = build()
-    X['ym'] = X['dt'].dt.to_period('M').astype(str)
-
-    R = predict_rows(X)
-    R.to_csv(OUT_ROWS, index=False, encoding='utf-8-sig')
-    print(f'예측 행 {len(R)}개 (고유일) · MAE {R.abs_err.mean():.2f} → {OUT_ROWS}\n')
-
-    C = by_cond(R)
-    C.to_csv(OUT_COND, index=False, encoding='utf-8-sig')
-
-    print('=' * 72)
-    print('[1] 오차가 큰 조건 상위 12 (n>=30 인 것만)')
-    top = C[C.n >= 30].nlargest(12, 'MAE')
-    print(top.to_string(index=False))
-
-    print('\n' + '=' * 72)
-    print('[2] 과소예측이 심한 조건 상위 8  (평균오차 양수 = 실제가 예측보다 높았다 = 피크를 놓침)')
-    print(C[C.n >= 30].nlargest(8, '평균오차').to_string(index=False))
-
-    print('\n' + '=' * 72)
-    print('[3] 오차 상위 1% 행은 어떤 날인가')
-    w = R.nlargest(max(1, len(R) // 100), 'abs_err')
-    print(f'  기준 |오차| >= {w.abs_err.min():.1f} · {len(w)}행')
-    print('  날짜별 건수 상위:', w['날짜'].value_counts().head(6).to_dict())
-    print('  시각 분포 상위 :', w.hour.value_counts().head(6).to_dict())
-    print(f'  이 행들의 평균오차 {w.err.mean():+.1f} (양수면 과소예측)')
-
-    imp, sv, xtr = shap_importance(X)
-    imp.to_csv(OUT_SHAP, header=['기여도(%)'], encoding='utf-8-sig')
-    print('\n' + '=' * 72)
-    print('[4] SHAP 영향요인 상위 12 (%)')
-    print(imp.head(12).to_string())
-    print(f'\n→ {OUT_COND}\n→ {OUT_SHAP}')
+    main()
