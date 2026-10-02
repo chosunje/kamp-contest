@@ -93,9 +93,11 @@ if __name__ == '__main__':
     e = out.actual - out.pred
     print(f'\n[정확도] MAE {e.abs().mean():.2f} · RMSE {np.sqrt((e ** 2).mean()):.2f} '
           f'· 최대오차 {e.abs().max():.1f}')
-    i, j = out.pred.idxmax(), out.actual.idxmax()
-    print(f'[일 피크] 예측 {out.hour[i]}시 {out.pred[i]:.0f} (15분 최대 환산 {out.pred_max15[i]:.0f}) '
-          f'/ 실제 {out.hour[j]}시 {out.actual[j]:.0f} (15분 최대 {out.actual_max15[j]:.0f})')
+    i, j, k = out.pred.idxmax(), out.actual.idxmax(), out.pred_hi.idxmax()
+    # 일 최대는 분위 0.9 로 추정한다. 점 예측의 최대는 체계적으로 낮다 ([7-5])
+    print(f'[일 최대] 추정 {out.pred_hi[k]:.0f} (분위 0.9, 15분 환산 {out.pred_hi_max15[k]:.0f}) '
+          f'· 점 예측 {out.pred[i]:.0f} (참고, 낮게 나온다) '
+          f'/ 실제 {out.actual[j]:.0f} (15분 최대 {out.actual_max15[j]:.0f}, {out.hour[j]}시)')
 
     # ★ 경보. 현장이 실제로 쓰는 산출물은 이 줄이다
     hit = out[out.alarm]

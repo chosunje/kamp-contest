@@ -77,13 +77,18 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
 
 
 def day_summary(out):
-    """일 단위 요약. 현장이 실제로 보는 것은 "그날 최대가 얼마고 언제인가" 이다."""
+    """일 단위 요약. 현장이 실제로 보는 것은 "그날 최대가 얼마고 언제인가" 이다.
+
+    ★ 일 최대는 점 예측이 아니라 분위 0.9 로 추정한다 ([7-5]).
+      점 예측은 시각마다 "가운데 값" 을 맞히므로, 그 24개의 최대는 실제 일 최대보다
+      체계적으로 낮다 (편향 +6.8). 분위 0.9 의 최대는 편향이 거의 0 이다 (-0.16).
+      시간별 정확도는 점 예측이, 일 최대는 분위 0.9 가 담당한다 — 용도가 다르다."""
     g = out.groupby('날짜')
     d = pd.DataFrame({
-        '예측_일최대': g.pred.max().round(1),
+        '일최대_추정': g.pred_hi.max().round(1),            # ★ 권장 추정값 (분위 0.9)
+        '일최대_점예측': g.pred.max().round(1),             # 참고용. 낮게 나온다
         '예측_피크시각': g.apply(lambda s: int(s.loc[s.pred.idxmax(), 'hour']), include_groups=False),
-        '예측_15분최대': g.pred_max15.max().round(1),
-        '경보상한_일최대': g.pred_hi.max().round(1),
+        '일최대_15분환산': g.pred_hi_max15.max().round(1),
         '경보': g.alarm.any(),
     })
     if out.actual.notna().any():
@@ -116,8 +121,10 @@ if __name__ == '__main__':
     if out.actual.notna().any():
         e = out.actual - out.pred
         print(f'\n[정확도] MAE {e.abs().mean():.2f} · RMSE {np.sqrt((e ** 2).mean()):.2f}')
-        dm = D['실제_일최대'] - D['예측_일최대']
-        print(f'[일 최대] 평균오차 {dm.mean():+.2f} (양수 = 낮게 봄) · MAE {dm.abs().mean():.2f}')
+        for lb, c in (('분위 0.9 (권장)', '일최대_추정'), ('점 예측 (참고)', '일최대_점예측')):
+            dm = D['실제_일최대'] - D[c]
+            print(f'[일 최대 · {lb}] 평균오차 {dm.mean():+.2f} (양수 = 낮게 봄) '
+                  f'· MAE {dm.abs().mean():.2f}')
         hit = (D['예측_피크시각'] == D['실제_피크시각']).mean() * 100
         print(f'[피크 시각 적중] {hit:.1f}%')
     else:
