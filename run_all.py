@@ -26,6 +26,7 @@ STEPS = [
     ('성능 체감 그림', 'viz_perf.py'),
     ('1주 앞 예측 + 피크 경보', 'forecast.py'),
     ('테스트 예측 파일 생성', 'predict_test.py'),
+    ('최종 성능 한 장 요약', 'report_final.py'),
 ]
 
 
