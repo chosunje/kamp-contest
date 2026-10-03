@@ -17,6 +17,7 @@ kamp-contest/
 │   ├── baseline.py     # 베이스라인 4종 (모델이 넘어야 할 목표선)
 │   ├── model.py        # 모델 비교 실험 (LightGBM / RandomForest, 설정 x 시드 x 폴드)
 │   ├── error_analysis.py # 최종 후보 OOF 예측 및 조건별 오차 분석
+│   ├── quantile_analysis.py # L1/P90 비교 및 D-1 입력·예측 불변성 검증(실험)
 │   ├── viz_perf.py     # 성능 체감용 그림 (예측 vs 실제)
 │   ├── operational_correction.py # 생산종료 이후 운영규칙 보정 실험(선택)
 │   └── forecast.py     # 특정 날짜 24시간을 1주 앞 시점에서 예측
@@ -33,6 +34,10 @@ kamp-contest/
 │   ├── error_by_date.csv
 │   ├── error_top_cases.csv
 │   ├── error_summary.txt
+│   ├── quantile_results.csv
+│   ├── quantile_predictions.csv
+│   ├── quantile_leakage_audit.csv
+│   ├── quantile_summary.txt
 │   └── forecast_{날짜}.csv
 ├── run_all.py          # 전체 파이프라인 실행
 ├── environment.yml     # conda 환경 정의
@@ -58,6 +63,10 @@ python run_all.py
 특정 날짜만 예측하려면 `python src/forecast.py 20210914` 처럼 날짜를 넘깁니다.
 
 오차 분석 후 생산계획상 마지막 생산시간 이후의 과대예측을 제한하는 운영규칙 실험은 `python src/operational_correction.py` 로 별도 실행합니다. 이 보정은 전체 점수는 개선되지만 일부 폴드가 악화되어 현재는 최종 모델이 아닌 실험 후보입니다.
+
+L1 점 예측과 분위수 0.9를 비교하려면 `python src/quantile_analysis.py`를 별도로 실행합니다. 기존 `h7_full` 재현용 결과(`reference`)와 당일 실제 전력에서 계산한 `is_off`를 제외한 D-1 결과(`d1`)를 나누어 저장합니다. D-1은 폴드 첫 평가일에 학습한 모델을 고정하고 매일 0시 이전 실적으로 입력을 갱신하는 방식이며, 평가일 이후 전력을 삭제·변경해도 입력과 예측이 동일한지 검사합니다. 생산 실적과 기상 실측을 계획·예보로 가정한 실험이고, P90은 초과확률 90%를 뜻하지 않습니다. 기존 최종 후보와 `forecast.py`의 D-7 동작은 이 실험으로 교체되지 않습니다.
+
+실험 검증은 `python -m unittest discover -s tests -v`로 실행합니다.
 
 모델 검증은 시간순 롤링 폴드(5 to 9월)로 하고, 성능 판단은 **고유일 · 7 to 9월(CORE) 기준**을 우선합니다. 5월은 학습이 4개월뿐이고 그 대부분이 복제일이라 오차가 크므로, 두 기준을 함께 출력합니다.
 
