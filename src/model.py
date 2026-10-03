@@ -66,8 +66,10 @@ RUNS = {
 
 def make_model(name, seed=0):
     """모델 1종을 만들어 돌려준다. 새 모델은 여기에 추가한다."""
-    if name == 'lgbm':
-        return lgb.LGBMRegressor(objective='l1', n_estimators=400, learning_rate=.05,
+    if name in {'lgbm', 'lgbm_q90'}:
+        loss = (dict(objective='quantile', alpha=.9) if name == 'lgbm_q90'
+                else dict(objective='l1'))
+        return lgb.LGBMRegressor(**loss, n_estimators=400, learning_rate=.05,
                                  num_leaves=31, min_data_in_leaf=20, feature_fraction=.8,
                                  bagging_fraction=.8, bagging_freq=1, verbose=-1, seed=seed)
     if name == 'rf':
