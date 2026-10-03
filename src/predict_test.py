@@ -24,26 +24,28 @@ import sys
 import numpy as np, pandas as pd
 
 from features import build, FEATURES, peak_ratio
-from model import make_model, CLONE_W, FINAL_CFG, ALARM_CFG
+from model import make_model, CLONE_W, FINAL_CFG, ALARM_CFG, MAX15_CFG
 from preprocess import ROOT
 
 ALARM_Q = .95    # 경보 임계값 (D10 확정 전 임시. 학습 구간 상위 5%)
 SEEDS = (0, 1, 2)
 
 
-def _weights(tr, peak_w):
+def _weights(tr, peak_w, target='target'):
     """학습 가중치. model.rolling_eval 과 같은 방식 (복제일 하향 x 피크행 상향)."""
     w = np.where(tr.is_clone, CLONE_W, 1.0)
     if peak_w != 1.0:
-        w = w * np.where(tr.target >= tr.target.quantile(.95), peak_w, 1.0)
+        w = w * np.where(tr[target] >= tr[target].quantile(.95), peak_w, 1.0)
     return w
 
 
 def _fit_predict(cfg, tr, te, peak_w, seeds=SEEDS):
-    """시드를 바꿔 여러 번 학습한 뒤 예측을 평균낸다 (시드 하나에 운을 걸지 않는다)."""
-    w = _weights(tr, peak_w)
+    """시드를 바꿔 여러 번 학습한 뒤 예측을 평균낸다 (시드 하나에 운을 걸지 않는다).
+    cfg['target'] 이 있으면 그 열을 학습한다 (15분 최대 직접 학습용)."""
+    tgt = cfg.get('target', 'target')
+    w = _weights(tr, peak_w, tgt)
     ps = [make_model(cfg['model'], s, cfg.get('params')).fit(
-        tr[cfg['cols']], tr.target, sample_weight=w).predict(te[cfg['cols']]) for s in seeds]
+        tr[cfg['cols']], tr[tgt], sample_weight=w).predict(te[cfg['cols']]) for s in seeds]
     return np.mean(ps, axis=0)
 
 
@@ -59,9 +61,9 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
     if len(tr) < 200:
         raise SystemExit(f'학습 행이 {len(tr)}개뿐이다. 예측 시점이 너무 이르다.')
 
-    point, alarm = dict(FINAL_CFG), dict(ALARM_CFG)
+    point, alarm, max15 = dict(FINAL_CFG), dict(ALARM_CFG), dict(MAX15_CFG)
     if no_plan:                                   # 생산계획이 안 오는 경우
-        point['cols'] = alarm['cols'] = FEATURES['h7_no_plan']
+        point['cols'] = alarm['cols'] = max15['cols'] = FEATURES['h7_no_plan']
 
     ratio = peak_ratio(tr).ratio_a                # 환산 계수도 학습 구간에서만
     thr = tr.target.quantile(ALARM_Q)
@@ -69,7 +71,10 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
     out = te[['dt', '날짜', 'hour']].copy()
     out['pred'] = _fit_predict(point, tr, te, point['peak_w'], seeds)
     out['pred_hi'] = _fit_predict(alarm, tr, te, 1.0, seeds)
-    out['pred_max15'] = out.pred * out.hour.map(ratio)
+    # 15분 최대(요금 기준). 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
+    # (CORE MAE 7.32 vs 7.87). 환산값은 비교용으로 _환산 열에 남긴다
+    out['pred_max15'] = _fit_predict(max15, tr, te, max15['peak_w'], seeds)
+    out['pred_max15_환산'] = out.pred * out.hour.map(ratio)
     out['pred_hi_max15'] = out.pred_hi * out.hour.map(ratio)
     out['alarm'] = out.pred_hi >= thr
     out['actual'] = te.target.values              # 진짜 테스트라면 비어 있다

@@ -105,7 +105,7 @@ def _fit_predict(name, seed, params, xtr, ytr, w, xva):
 
 def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep',
                  clone_w=CLONE_W, seed=0, folds=None, params=None,
-                 peak_w=1.0, peak_q=.95, hol_w=1.0):
+                 peak_w=1.0, peak_q=.95, hol_w=1.0, target='target', decay_days=None):
     """시간순 롤링 폴드로 학습·예측한 결과를 행 단위로 돌려준다.
 
     cols       사용할 피처 목록 (FEATURES['full'] 등)
@@ -118,6 +118,10 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
     peak_w     학습 구간 상위 peak_q 분위 행에 곱할 가중치 (피크 과소예측 대응)
     hol_w      학습 구간 공휴일 행에 곱할 가중치 (공휴일 사례가 적어서 묻히는 문제 대응)
     seed       난수 시드. 같은 설정을 여러 시드로 돌려 "차이가 흔들림보다 큰지" 본다
+    target     학습·평가에 쓸 타깃 열. 'target' 은 시간 평균, 'target_max15' 는 15분 최대다.
+               요금은 15분 최대로 매겨지므로 후자를 직접 학습하는 경로가 따로 필요하다 (6차 실험)
+    decay_days 오래된 행의 가중치를 줄이는 반감기(일). None 이면 전부 같은 무게.
+               6차 실험에서 기각됐다 (반감기가 짧을수록 단조롭게 악화) — 재현용으로만 남김
     """
     names, ws = zip(*[(s.split(':')[0], float(s.split(':')[1]) if ':' in s else 1.0)
                       for s in model.split('+')])
@@ -132,22 +136,25 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
             tr = tr[~tr.is_clone]
         if len(va) == 0 or len(tr) < 200:
             continue                                        # 6월은 고유일이 2일뿐이라 건너뛸 수 있다
-        thr = tr.target.quantile(.95)                       # 피크 임계: 학습 구간 상위 5% (D10 확정 전 임시)
+        thr = tr[target].quantile(.95)                      # 피크 임계: 학습 구간 상위 5% (D10 확정 전 임시)
         # 가중치는 곱해서 쌓는다. 전부 1.0 이면 None 으로 넘겨 기존 동작과 완전히 같게 둔다
         w = np.ones(len(tr))
         if clone == 'weight':
             w *= np.where(tr.is_clone, clone_w, 1.0)
         if peak_w != 1.0:
-            w *= np.where(tr.target >= tr.target.quantile(peak_q), peak_w, 1.0)
+            w *= np.where(tr[target] >= tr[target].quantile(peak_q), peak_w, 1.0)
         if hol_w != 1.0:
             w *= np.where(tr.is_holiday == 1, hol_w, 1.0)
+        if decay_days:
+            age = (va['dt'].min() - tr['dt']).dt.total_seconds().values / 86400
+            w *= 0.5 ** (age / decay_days)
         w = None if np.allclose(w, 1.0) else w
         xtr, xva = tr[cols], va[cols]
-        p = np.average([_fit_predict(n, seed, params.get(n), xtr, tr.target, w, xva)
+        p = np.average([_fit_predict(n, seed, params.get(n), xtr, tr[target], w, xva)
                         for n in names], axis=0, weights=ws)
         # idx = 검증 행의 원본 인덱스. 오차 분석에서 조건별로 되짚어 보려고 같이 들고 나간다
-        out.append(pd.DataFrame({'fold': m, 'idx': va.index, 'y': va.target.values,
-                                 'p': p, 'peak': va.target.values >= thr}))
+        out.append(pd.DataFrame({'fold': m, 'idx': va.index, 'y': va[target].values,
+                                 'p': p, 'peak': va[target].values >= thr}))
     return pd.concat(out, ignore_index=True)
 
 
@@ -253,6 +260,14 @@ ALT_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
 # peakMAE 8.13 으로 모든 설정 중 압도적으로 낮다 → 인수인계 [2] 1순위 경보에 쓴다
 ALARM_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W,
                  params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.9})
+
+# ── 15분 최대 전용 (6차 실험) ───────────────────────────────────────────────
+# 요금은 시간 평균이 아니라 15분 최대로 매겨진다 (D10 ①). 그 값을 내는 두 경로를
+# 같은 기준에서 비교했더니 직접 학습이 분명히 나았다 (CORE MAE 7.32 vs 환산 7.87,
+# 흔들림 0.11/0.23). 환산은 시각별 평균 비율을 쓰므로 그날의 사정을 반영하지 못한다.
+#   직접 학습  타깃만 target_max15 로 바꾼다. 설정은 점 예측과 같다
+#   환산       시간 평균 예측 x 시각별 (15분최대/시간평균) 비율  → 참고용으로 남긴다
+MAX15_CFG = dict(FINAL_CFG, target='target_max15')
 
 # 강화 실험 결과를 본 실험표에도 올려 둔다 (run_all.py 는 --fix 없이 돌기 때문에)
 RUNS['★ 강화 최종 (얕은나무+느린학습+피크가중)'] = FINAL_CFG
