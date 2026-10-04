@@ -16,8 +16,9 @@ HOLIDAY = {
 }
 
 
-def load() -> pd.DataFrame:
-    df = pd.read_csv(RAW)
+def load(raw: pd.DataFrame | None = None) -> pd.DataFrame:
+    """원본 또는 메모리의 원본 형식 데이터를 정제한다. 입력은 수정하지 않는다."""
+    df = pd.read_csv(RAW) if raw is None else raw.copy(deep=True)
     # 7/13, 7/15: 시간 컬럼 손상 + 생산량 기록 누락 → 학습 제외 (전력값은 정상이라 lag 입력으로는 사용)
     df['is_corrupt'] = df.groupby('날짜')['시간'].transform(lambda s: (~s.between(0, 23)).any())
     df['시간'] = df.groupby('날짜').cumcount()

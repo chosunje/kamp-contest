@@ -51,8 +51,9 @@ META = ['dt', '날짜', 'target', 'target_max15', 'target_max15_trapz', 'is_clon
         'is_stop', 'is_corrupt', 'is_prod_missing', 'train_ok', 'train_ok_strict']
 
 
-def build() -> pd.DataFrame:
-    df = load()
+def build(df: pd.DataFrame | None = None) -> pd.DataFrame:
+    """정제 데이터로 피처를 만든다. df 인자는 미래 전력 변경 검증용으로도 사용한다."""
+    df = load() if df is None else df
     f = pd.DataFrame(index=df.index)
     day = df.groupby('날짜')
 

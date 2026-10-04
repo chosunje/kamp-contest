@@ -77,9 +77,16 @@ LGBM_BASE = dict(objective='l1', n_estimators=400, learning_rate=.05, num_leaves
 
 
 def make_model(name, seed=0, params=None):
-    """모델 1종을 만들어 돌려준다. params 로 기본 설정을 덮어쓸 수 있다."""
+    """모델 1종을 만들어 돌려준다. params 로 기본 설정을 덮어쓸 수 있다.
+
+    lgbm_q90 은 분위 0.9 를 맞추는 lgbm 이다. 팀원의 quantile_analysis.py 가 이 이름으로
+    쓰므로 유지한다. 내 쪽에서는 params 로 objective 를 직접 주기 때문에(ALARM_CFG)
+    이 이름을 쓰지 않는다 — 같은 모델을 부르는 두 가지 방법인 셈이다.
+    """
     p = dict(params or {})
-    if name == 'lgbm':
+    if name in {'lgbm', 'lgbm_q90'}:
+        if name == 'lgbm_q90':
+            p = {'objective': 'quantile', 'alpha': .9, **p}   # params 가 주면 그쪽이 이긴다
         return lgb.LGBMRegressor(**{**LGBM_BASE, **p, 'seed': seed})
     if name == 'rf':
         return RandomForestRegressor(**{'n_estimators': 300, 'min_samples_leaf': 5,
