@@ -21,6 +21,8 @@ STEPS = [
     ('모델 비교 실험', 'model.py'),
     ('예측오차 분석', 'error_analysis.py'),
     ('성능 체감 그림', 'viz_perf.py'),
+    ('보고서 1장 표·그림 데이터', 'report_ch1.py'),
+    ('보고서 2장 표·그림 데이터', 'report_ch2.py'),
     ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
 ]
 

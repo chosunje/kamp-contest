@@ -61,23 +61,39 @@ RUNS = {
     '15 조합 + 가중치 0.05':           dict(clone='weight', clone_w=0.05, cols=FEATURES['h7_full']),
     # 생산계획이 없는 쪽에도 같은 조합이 통하는지 (7번과 비교할 것)
     '16 no_plan 조합':                dict(clone='weight', clone_w=0.1, cols=FEATURES['h7_no_plan']),
+
+    # ── 가중치 격자 채우기 (2026-10-04) ──────────────────────────────────
+    # 10 to 13 번은 full 세트에서만, 14·15 번은 h7_full 세트에서 최종 후보 근처만 돌렸다.
+    # 정작 최종 모델이 h7_full 이라 그쪽 격자가 성겼다 → 두 세트를 같은 간격으로 맞춘다.
+    # 17 번(조합 + 제외)은 5월 폴드가 학습 부족으로 빠지므로 CORE 기준으로만 비교할 것
+    '17 조합 + 복제일 학습 제외':       dict(clone='drop', cols=FEATURES['h7_full']),
+    '18 조합 + 가중치 0.5':            dict(clone='weight', clone_w=0.5, cols=FEATURES['h7_full']),
+    '19 조합 + 가중치 0.7':            dict(clone='weight', clone_w=0.7, cols=FEATURES['h7_full']),
+    '20 가중치 0.05':                 dict(clone='weight', clone_w=0.05),
 }
 
 
-def make_model(name, seed=0):
-    """모델 1종을 만들어 돌려준다. 새 모델은 여기에 추가한다."""
+LGBM_PARAMS = dict(objective='l1', n_estimators=400, learning_rate=.05,
+                   num_leaves=31, min_data_in_leaf=20, feature_fraction=.8,
+                   bagging_fraction=.8, bagging_freq=1, verbose=-1)
+RF_PARAMS = dict(n_estimators=300, min_samples_leaf=5, n_jobs=-1)
+
+
+def make_model(name, seed=0, params=None):
+    """모델 1종을 만들어 돌려준다. 새 모델은 여기에 추가한다.
+
+    params 로 기본값을 덮어쓸 수 있다 (하이퍼파라미터 민감도 점검용, src/hparam_check.py).
+    아무것도 넘기지 않으면 아래 기본 설정 그대로다.
+    """
     if name == 'lgbm':
-        return lgb.LGBMRegressor(objective='l1', n_estimators=400, learning_rate=.05,
-                                 num_leaves=31, min_data_in_leaf=20, feature_fraction=.8,
-                                 bagging_fraction=.8, bagging_freq=1, verbose=-1, seed=seed)
+        return lgb.LGBMRegressor(**{**LGBM_PARAMS, **(params or {})}, seed=seed)
     if name == 'rf':
-        return RandomForestRegressor(n_estimators=300, min_samples_leaf=5,
-                                     n_jobs=-1, random_state=seed)
+        return RandomForestRegressor(**{**RF_PARAMS, **(params or {})}, random_state=seed)
     raise ValueError(f'모르는 모델: {name}')
 
 
 def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep',
-                 clone_w=CLONE_W, seed=0):
+                 clone_w=CLONE_W, seed=0, params=None):
     """시간순 롤링 폴드로 학습·예측한 결과를 행 단위로 돌려준다.
 
     cols       사용할 피처 목록 (FEATURES['full'] 또는 FEATURES['no_plan'])
@@ -99,7 +115,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
         xtr, xva = tr[cols], va[cols]
         if model in NEEDS_FILL:
             xtr, xva = xtr.fillna(-999), xva.fillna(-999)
-        g = make_model(model, seed).fit(xtr, tr.target, sample_weight=w)
+        g = make_model(model, seed, params).fit(xtr, tr.target, sample_weight=w)
         out.append(pd.DataFrame({'fold': m, 'y': va.target.values, 'p': g.predict(xva),
                                  'peak': va.target.values >= thr}))
     return pd.concat(out, ignore_index=True)
