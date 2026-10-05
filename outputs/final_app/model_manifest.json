@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "model": "LightGBM · 시드 0/1/2 평균",
+  "train_cutoff": "2021-09-08T00:00:00",
+  "start": "2021-09-08",
+  "end": "2021-09-14",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "train_rows": {
+    "point": 5621,
+    "max15": 5621,
+    "alarm": 5621
+  },
+  "feature_count": 33,
+  "configs": {
+    "point": {
+      "cols": [
+        "hour",
+        "dow",
+        "is_weekend",
+        "is_holiday",
+        "shift",
+        "is_transition",
+        "month",
+        "after_off",
+        "off_run_prev",
+        "days_since_off",
+        "day_prod_zero",
+        "prod",
+        "prod_cap",
+        "prod_log",
+        "prod_zero",
+        "day_prod",
+        "day_prod_hours",
+        "prod_prev",
+        "prod_next",
+        "prod_diff",
+        "cool",
+        "temp",
+        "humid",
+        "thi",
+        "wind",
+        "rain",
+        "lag168",
+        "lag336",
+        "lag_week_mean4",
+        "last_week_day_mean",
+        "last_week_day_max",
+        "lag168_na",
+        "lag_best"
+      ],
+      "model": "lgbm",
+      "train_flag": "train_ok_strict",
+      "clone": "weight",
+      "clone_w": 0.3,
+      "peak_w": 3.0,
+      "params": {
+        "num_leaves": 15,
+        "min_data_in_leaf": 40,
+        "learning_rate": 0.02,
+        "n_estimators": 1200,
+        "feature_fraction": 0.6
+      },
+      "target": "target"
+    },
+    "max15": {
+      "cols": [
+        "hour",
+        "dow",
+        "is_weekend",
+        "is_holiday",
+        "shift",
+        "is_transition",
+        "month",
+        "after_off",
+        "off_run_prev",
+        "days_since_off",
+        "day_prod_zero",
+        "prod",
+        "prod_cap",
+        "prod_log",
+        "prod_zero",
+        "day_prod",
+        "day_prod_hours",
+        "prod_prev",
+        "prod_next",
+        "prod_diff",
+        "cool",
+        "temp",
+        "humid",
+        "thi",
+        "wind",
+        "rain",
+        "lag168",
+        "lag336",
+        "lag_week_mean4",
+        "last_week_day_mean",
+        "last_week_day_max",
+        "lag168_na",
+        "lag_best"
+      ],
+      "model": "lgbm",
+      "train_flag": "train_ok_strict",
+      "clone": "weight",
+      "clone_w": 0.3,
+      "peak_w": 3.0,
+      "params": {
+        "num_leaves": 15,
+        "min_data_in_leaf": 40,
+        "learning_rate": 0.02,
+        "n_estimators": 1200,
+        "feature_fraction": 0.6
+      },
+      "target": "target_max15"
+    },
+    "alarm": {
+      "cols": [
+        "hour",
+        "dow",
+        "is_weekend",
+        "is_holiday",
+        "shift",
+        "is_transition",
+        "month",
+        "after_off",
+        "off_run_prev",
+        "days_since_off",
+        "day_prod_zero",
+        "prod",
+        "prod_cap",
+        "prod_log",
+        "prod_zero",
+        "day_prod",
+        "day_prod_hours",
+        "prod_prev",
+        "prod_next",
+        "prod_diff",
+        "cool",
+        "temp",
+        "humid",
+        "thi",
+        "wind",
+        "rain",
+        "lag168",
+        "lag336",
+        "lag_week_mean4",
+        "last_week_day_mean",
+        "last_week_day_max",
+        "lag168_na",
+        "lag_best"
+      ],
+      "model": "lgbm",
+      "train_flag": "train_ok_strict",
+      "clone": "weight",
+      "clone_w": 0.3,
+      "params": {
+        "num_leaves": 15,
+        "min_data_in_leaf": 40,
+        "objective": "quantile",
+        "alpha": 0.9
+      },
+      "target": "target_max15"
+    }
+  },
+  "source_fingerprint": "00b0bcaaba229c237a45bb30a86275be1943c492f15491afc9f6ef08029dc440",
+  "policy_id": "D10_max15_p90_q95",
+  "threshold_basis": "relative_q95",
+  "threshold_value": 187.0,
+  "unit": "원본 전력 단위",
+  "no_plan": false,
+  "mode": "historical_demo",
+  "data_source": "okm_augumented_2021.csv",
+  "assumptions": [
+    "생산 실적·기상 실측을 계획·예보로 가정한 시연입니다.",
+    "기간 첫날 00시 이후의 전력을 모델 입력에 사용하지 않습니다.",
+    "15분 컬럼은 D20 A안이며 전력 단위와 계약전력은 확인되지 않았습니다.",
+    "P90은 보정된 신뢰상한이 아니며 저감 시뮬레이션은 실제 효과를 보장하지 않습니다.",
+    "점 예측은 is_off를 제외한 운영용 입력으로 재학습했으며 기존 사후 MAE와 구분합니다."
+  ],
+  "library_versions": {
+    "lightgbm": "4.7.0",
+    "pandas": "3.0.6",
+    "numpy": "2.5.3"
+  },
+  "model_files": [
+    {
+      "kind": "point",
+      "seed": 0,
+      "path": "models/point_seed0.txt",
+      "sha256": "d83a02b5afb4dbc98838e04fe0d4e664da3dea503c393751b7bf9d11cc7f4e5d"
+    },
+    {
+      "kind": "point",
+      "seed": 1,
+      "path": "models/point_seed1.txt",
+      "sha256": "31e693986677198a0c1d664772de921e438976b029f8b8c09481422650491a2d"
+    },
+    {
+      "kind": "point",
+      "seed": 2,
+      "path": "models/point_seed2.txt",
+      "sha256": "de04c7cc456ba6de6bb8e9e23672a92770d81cab23943abcca58d0f809fa11f4"
+    },
+    {
+      "kind": "max15",
+      "seed": 0,
+      "path": "models/max15_seed0.txt",
+      "sha256": "96630a98c6a04a50bd3f58d36e6669af84769affd9afcd09245eeee053a739b2"
+    },
+    {
+      "kind": "max15",
+      "seed": 1,
+      "path": "models/max15_seed1.txt",
+      "sha256": "8e1365dc8f1fadf2cb602bd29e97a6ad92a3b0b2ca3e3f7e27dcaa96aefac4e3"
+    },
+    {
+      "kind": "max15",
+      "seed": 2,
+      "path": "models/max15_seed2.txt",
+      "sha256": "a3602e8332bead3e6a4bcc7641e60c31a59f3b95f711fae89d29180386d87a64"
+    },
+    {
+      "kind": "alarm",
+      "seed": 0,
+      "path": "models/alarm_seed0.txt",
+      "sha256": "d9f838813bc199f4cd0bdc47c7f21aaeb6bfb5c7b0cfba34707ab14e47ad4058"
+    },
+    {
+      "kind": "alarm",
+      "seed": 1,
+      "path": "models/alarm_seed1.txt",
+      "sha256": "85100730a0b9613ba9810b5e5d6e3131cac16fc8001b3be75416ce04302d563b"
+    },
+    {
+      "kind": "alarm",
+      "seed": 2,
+      "path": "models/alarm_seed2.txt",
+      "sha256": "e9604359b52ead7b9a95b82f1cbbf635a5c2bcd28337a0781c478205d13fccb1"
+    }
+  ],
+  "raw_sha256": "8f7af2e49366c93e1d6f5fdef4b5e350066c1792ac463c2c2886e370f4674830"
+}

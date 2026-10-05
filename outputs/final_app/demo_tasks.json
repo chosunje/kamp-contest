@@ -1,0 +1,52 @@
+[
+  {
+    "task_id": "A",
+    "name": "예시 작업 A",
+    "original_start": 14,
+    "duration": 2,
+    "earliest_start": 8,
+    "latest_end": 20,
+    "load": 8.0,
+    "movable": true,
+    "resource": "설비 A",
+    "depends_on": []
+  },
+  {
+    "task_id": "B",
+    "name": "예시 작업 B",
+    "original_start": 14,
+    "duration": 2,
+    "earliest_start": 8,
+    "latest_end": 20,
+    "load": 10.0,
+    "movable": true,
+    "resource": "설비 B",
+    "depends_on": []
+  },
+  {
+    "task_id": "C",
+    "name": "예시 후속 작업 C",
+    "original_start": 16,
+    "duration": 2,
+    "earliest_start": 8,
+    "latest_end": 20,
+    "load": 6.0,
+    "movable": true,
+    "resource": "설비 A",
+    "depends_on": [
+      "A"
+    ]
+  },
+  {
+    "task_id": "D",
+    "name": "예시 고정 작업 D",
+    "original_start": 18,
+    "duration": 1,
+    "earliest_start": 8,
+    "latest_end": 20,
+    "load": 3.0,
+    "movable": false,
+    "resource": "설비 B",
+    "depends_on": []
+  }
+]

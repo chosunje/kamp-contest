@@ -1,0 +1,1770 @@
+{
+  "meta": {
+    "schema_version": 1,
+    "model": "LightGBM · 시드 0/1/2 평균",
+    "train_cutoff": "2021-09-08T00:00:00",
+    "start": "2021-09-08",
+    "end": "2021-09-14",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "train_rows": {
+      "point": 5621,
+      "max15": 5621,
+      "alarm": 5621
+    },
+    "feature_count": 33,
+    "configs": {
+      "point": {
+        "cols": [
+          "hour",
+          "dow",
+          "is_weekend",
+          "is_holiday",
+          "shift",
+          "is_transition",
+          "month",
+          "after_off",
+          "off_run_prev",
+          "days_since_off",
+          "day_prod_zero",
+          "prod",
+          "prod_cap",
+          "prod_log",
+          "prod_zero",
+          "day_prod",
+          "day_prod_hours",
+          "prod_prev",
+          "prod_next",
+          "prod_diff",
+          "cool",
+          "temp",
+          "humid",
+          "thi",
+          "wind",
+          "rain",
+          "lag168",
+          "lag336",
+          "lag_week_mean4",
+          "last_week_day_mean",
+          "last_week_day_max",
+          "lag168_na",
+          "lag_best"
+        ],
+        "model": "lgbm",
+        "train_flag": "train_ok_strict",
+        "clone": "weight",
+        "clone_w": 0.3,
+        "peak_w": 3.0,
+        "params": {
+          "num_leaves": 15,
+          "min_data_in_leaf": 40,
+          "learning_rate": 0.02,
+          "n_estimators": 1200,
+          "feature_fraction": 0.6
+        },
+        "target": "target"
+      },
+      "max15": {
+        "cols": [
+          "hour",
+          "dow",
+          "is_weekend",
+          "is_holiday",
+          "shift",
+          "is_transition",
+          "month",
+          "after_off",
+          "off_run_prev",
+          "days_since_off",
+          "day_prod_zero",
+          "prod",
+          "prod_cap",
+          "prod_log",
+          "prod_zero",
+          "day_prod",
+          "day_prod_hours",
+          "prod_prev",
+          "prod_next",
+          "prod_diff",
+          "cool",
+          "temp",
+          "humid",
+          "thi",
+          "wind",
+          "rain",
+          "lag168",
+          "lag336",
+          "lag_week_mean4",
+          "last_week_day_mean",
+          "last_week_day_max",
+          "lag168_na",
+          "lag_best"
+        ],
+        "model": "lgbm",
+        "train_flag": "train_ok_strict",
+        "clone": "weight",
+        "clone_w": 0.3,
+        "peak_w": 3.0,
+        "params": {
+          "num_leaves": 15,
+          "min_data_in_leaf": 40,
+          "learning_rate": 0.02,
+          "n_estimators": 1200,
+          "feature_fraction": 0.6
+        },
+        "target": "target_max15"
+      },
+      "alarm": {
+        "cols": [
+          "hour",
+          "dow",
+          "is_weekend",
+          "is_holiday",
+          "shift",
+          "is_transition",
+          "month",
+          "after_off",
+          "off_run_prev",
+          "days_since_off",
+          "day_prod_zero",
+          "prod",
+          "prod_cap",
+          "prod_log",
+          "prod_zero",
+          "day_prod",
+          "day_prod_hours",
+          "prod_prev",
+          "prod_next",
+          "prod_diff",
+          "cool",
+          "temp",
+          "humid",
+          "thi",
+          "wind",
+          "rain",
+          "lag168",
+          "lag336",
+          "lag_week_mean4",
+          "last_week_day_mean",
+          "last_week_day_max",
+          "lag168_na",
+          "lag_best"
+        ],
+        "model": "lgbm",
+        "train_flag": "train_ok_strict",
+        "clone": "weight",
+        "clone_w": 0.3,
+        "params": {
+          "num_leaves": 15,
+          "min_data_in_leaf": 40,
+          "objective": "quantile",
+          "alpha": 0.9
+        },
+        "target": "target_max15"
+      }
+    },
+    "source_fingerprint": "00b0bcaaba229c237a45bb30a86275be1943c492f15491afc9f6ef08029dc440",
+    "policy_id": "D10_max15_p90_q95",
+    "threshold_basis": "relative_q95",
+    "threshold_value": 187.0,
+    "unit": "원본 전력 단위",
+    "no_plan": false,
+    "mode": "historical_demo",
+    "data_source": "okm_augumented_2021.csv",
+    "assumptions": [
+      "생산 실적·기상 실측을 계획·예보로 가정한 시연입니다.",
+      "기간 첫날 00시 이후의 전력을 모델 입력에 사용하지 않습니다.",
+      "15분 컬럼은 D20 A안이며 전력 단위와 계약전력은 확인되지 않았습니다.",
+      "P90은 보정된 신뢰상한이 아니며 저감 시뮬레이션은 실제 효과를 보장하지 않습니다.",
+      "점 예측은 is_off를 제외한 운영용 입력으로 재학습했으며 기존 사후 MAE와 구분합니다."
+    ],
+    "library_versions": {
+      "lightgbm": "4.7.0",
+      "pandas": "3.0.6",
+      "numpy": "2.5.3"
+    },
+    "model_files": [
+      {
+        "kind": "point",
+        "seed": 0,
+        "path": "models/point_seed0.txt",
+        "sha256": "d83a02b5afb4dbc98838e04fe0d4e664da3dea503c393751b7bf9d11cc7f4e5d"
+      },
+      {
+        "kind": "point",
+        "seed": 1,
+        "path": "models/point_seed1.txt",
+        "sha256": "31e693986677198a0c1d664772de921e438976b029f8b8c09481422650491a2d"
+      },
+      {
+        "kind": "point",
+        "seed": 2,
+        "path": "models/point_seed2.txt",
+        "sha256": "de04c7cc456ba6de6bb8e9e23672a92770d81cab23943abcca58d0f809fa11f4"
+      },
+      {
+        "kind": "max15",
+        "seed": 0,
+        "path": "models/max15_seed0.txt",
+        "sha256": "96630a98c6a04a50bd3f58d36e6669af84769affd9afcd09245eeee053a739b2"
+      },
+      {
+        "kind": "max15",
+        "seed": 1,
+        "path": "models/max15_seed1.txt",
+        "sha256": "8e1365dc8f1fadf2cb602bd29e97a6ad92a3b0b2ca3e3f7e27dcaa96aefac4e3"
+      },
+      {
+        "kind": "max15",
+        "seed": 2,
+        "path": "models/max15_seed2.txt",
+        "sha256": "a3602e8332bead3e6a4bcc7641e60c31a59f3b95f711fae89d29180386d87a64"
+      },
+      {
+        "kind": "alarm",
+        "seed": 0,
+        "path": "models/alarm_seed0.txt",
+        "sha256": "d9f838813bc199f4cd0bdc47c7f21aaeb6bfb5c7b0cfba34707ab14e47ad4058"
+      },
+      {
+        "kind": "alarm",
+        "seed": 1,
+        "path": "models/alarm_seed1.txt",
+        "sha256": "85100730a0b9613ba9810b5e5d6e3131cac16fc8001b3be75416ce04302d563b"
+      },
+      {
+        "kind": "alarm",
+        "seed": 2,
+        "path": "models/alarm_seed2.txt",
+        "sha256": "e9604359b52ead7b9a95b82f1cbbf635a5c2bcd28337a0781c478205d13fccb1"
+      }
+    ],
+    "raw_sha256": "8f7af2e49366c93e1d6f5fdef4b5e350066c1792ac463c2c2886e370f4674830"
+  },
+  "dates": [
+    "2021-09-08",
+    "2021-09-09",
+    "2021-09-10",
+    "2021-09-11",
+    "2021-09-12",
+    "2021-09-13",
+    "2021-09-14"
+  ],
+  "forecast": [
+    {
+      "date": "2021-09-08",
+      "hour": 0,
+      "pred": 69.57512271017627,
+      "pred_max15": 80.75249294713107,
+      "pred_hi_max15": 93.75272999804999,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 1,
+      "pred": 108.37817393662768,
+      "pred_max15": 115.49125072228809,
+      "pred_hi_max15": 123.10716045925817,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 2,
+      "pred": 111.02510191296432,
+      "pred_max15": 119.3779340971909,
+      "pred_hi_max15": 123.94097334649346,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 3,
+      "pred": 106.28265185443023,
+      "pred_max15": 116.2997312242228,
+      "pred_hi_max15": 117.25683724553437,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 4,
+      "pred": 111.79800966440735,
+      "pred_max15": 118.95981202746931,
+      "pred_hi_max15": 122.16542357488925,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 5,
+      "pred": 95.38142527563559,
+      "pred_max15": 114.91124528180097,
+      "pred_hi_max15": 116.55116012045295,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 6,
+      "pred": 112.41600298473122,
+      "pred_max15": 118.56929086775995,
+      "pred_hi_max15": 123.9803110299958,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 7,
+      "pred": 130.3683385196805,
+      "pred_max15": 149.92598542413518,
+      "pred_hi_max15": 159.1821922982531,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 8,
+      "pred": 176.68740838243434,
+      "pred_max15": 187.71455640631333,
+      "pred_hi_max15": 195.1975382977228,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 9,
+      "pred": 171.5357024716444,
+      "pred_max15": 184.29679881083982,
+      "pred_hi_max15": 185.59679683498499,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 10,
+      "pred": 183.11813856808286,
+      "pred_max15": 192.66245070676726,
+      "pred_hi_max15": 195.00069243184078,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 11,
+      "pred": 183.54956009415375,
+      "pred_max15": 190.6016842510486,
+      "pred_hi_max15": 192.74983941804092,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 12,
+      "pred": 112.60490866604304,
+      "pred_max15": 126.67823329462942,
+      "pred_hi_max15": 134.2417063384008,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 13,
+      "pred": 176.98020823725423,
+      "pred_max15": 185.62449004711823,
+      "pred_hi_max15": 191.88267740279386,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 14,
+      "pred": 177.8539495059563,
+      "pred_max15": 187.37063789002727,
+      "pred_hi_max15": 190.8584783366564,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 15,
+      "pred": 170.6225434201455,
+      "pred_max15": 185.0415900230204,
+      "pred_hi_max15": 188.79394883085388,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 16,
+      "pred": 168.91499739368763,
+      "pred_max15": 179.163502176141,
+      "pred_hi_max15": 186.05526451760565,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 17,
+      "pred": 142.27372081919583,
+      "pred_max15": 165.23237229730032,
+      "pred_hi_max15": 178.9865310084078,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 18,
+      "pred": 163.33679411552654,
+      "pred_max15": 173.0690089723571,
+      "pred_hi_max15": 183.30677666710505,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 19,
+      "pred": 146.8757784518235,
+      "pred_max15": 159.82094310459857,
+      "pred_hi_max15": 173.19724364648448,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 20,
+      "pred": 124.70316984457999,
+      "pred_max15": 131.65204149320513,
+      "pred_hi_max15": 137.42621656672054,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 21,
+      "pred": 122.54686516321772,
+      "pred_max15": 128.0772270884548,
+      "pred_hi_max15": 135.0167442158781,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 22,
+      "pred": 115.45838143844121,
+      "pred_max15": 122.265171284894,
+      "pred_hi_max15": 127.80319983786522,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-08",
+      "hour": 23,
+      "pred": 111.39463582574031,
+      "pred_max15": 121.09202254441526,
+      "pred_hi_max15": 128.61519780799952,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 0,
+      "pred": 69.03490645195667,
+      "pred_max15": 78.90335256869336,
+      "pred_hi_max15": 84.37284474925954,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 1,
+      "pred": 111.26585017965583,
+      "pred_max15": 117.61141378666338,
+      "pred_hi_max15": 121.09332092276911,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 2,
+      "pred": 111.37440604644867,
+      "pred_max15": 118.23218085210226,
+      "pred_hi_max15": 120.50137111404081,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 3,
+      "pred": 106.87279134926753,
+      "pred_max15": 118.57917651976794,
+      "pred_hi_max15": 116.39224429219813,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 4,
+      "pred": 112.21162387360357,
+      "pred_max15": 117.29480831371329,
+      "pred_hi_max15": 121.02407169170203,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 5,
+      "pred": 98.63171883966835,
+      "pred_max15": 116.27373253912363,
+      "pred_hi_max15": 115.4904992183455,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 6,
+      "pred": 111.54630054303038,
+      "pred_max15": 117.66104958647507,
+      "pred_hi_max15": 124.62638380328868,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 7,
+      "pred": 133.79509122902218,
+      "pred_max15": 151.7340085867867,
+      "pred_hi_max15": 164.17706472378867,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 8,
+      "pred": 177.929736981385,
+      "pred_max15": 190.3285027086669,
+      "pred_hi_max15": 195.10726637429937,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 9,
+      "pred": 175.14058391235062,
+      "pred_max15": 187.11387674788116,
+      "pred_hi_max15": 188.2605589067982,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 10,
+      "pred": 180.54722880532168,
+      "pred_max15": 187.99018807807656,
+      "pred_hi_max15": 188.89735426913037,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 11,
+      "pred": 180.63397109858704,
+      "pred_max15": 189.34060390273532,
+      "pred_hi_max15": 191.18963075366923,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 12,
+      "pred": 113.31881815815105,
+      "pred_max15": 131.32912505212232,
+      "pred_hi_max15": 131.2679885276956,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 13,
+      "pred": 180.652991195926,
+      "pred_max15": 187.9515820336229,
+      "pred_hi_max15": 190.49602197989734,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 14,
+      "pred": 186.7036909355568,
+      "pred_max15": 196.02298954094206,
+      "pred_hi_max15": 199.1143949579225,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 15,
+      "pred": 176.04932364260154,
+      "pred_max15": 188.70826624414977,
+      "pred_hi_max15": 191.93913532989936,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 16,
+      "pred": 175.60634014147536,
+      "pred_max15": 183.98998405414804,
+      "pred_hi_max15": 189.4545991911685,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 17,
+      "pred": 136.65714564946055,
+      "pred_max15": 162.70258653337302,
+      "pred_hi_max15": 169.48889925416665,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 18,
+      "pred": 162.30739108658554,
+      "pred_max15": 169.37592958139257,
+      "pred_hi_max15": 180.29142744286153,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 19,
+      "pred": 158.77935207481468,
+      "pred_max15": 166.7385388720833,
+      "pred_hi_max15": 173.55355550722177,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 20,
+      "pred": 122.89501111671672,
+      "pred_max15": 128.78739816672757,
+      "pred_hi_max15": 140.6667248332726,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 21,
+      "pred": 125.7582441126815,
+      "pred_max15": 130.83630598202262,
+      "pred_hi_max15": 132.43685986466767,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 22,
+      "pred": 115.42085582507588,
+      "pred_max15": 121.69210704958579,
+      "pred_hi_max15": 126.55453249078273,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-09",
+      "hour": 23,
+      "pred": 112.62681708164085,
+      "pred_max15": 122.13165614945099,
+      "pred_hi_max15": 125.83158436055264,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 0,
+      "pred": 67.59369516723643,
+      "pred_max15": 75.85692496217389,
+      "pred_hi_max15": 79.27854422161575,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 1,
+      "pred": 108.34555002735026,
+      "pred_max15": 115.02978982683169,
+      "pred_hi_max15": 116.13544919281986,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 2,
+      "pred": 110.60965200942486,
+      "pred_max15": 116.35225497140648,
+      "pred_hi_max15": 120.22339152143253,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 3,
+      "pred": 109.93481624150031,
+      "pred_max15": 116.63211469557126,
+      "pred_hi_max15": 118.54742765681881,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 4,
+      "pred": 109.22133134129479,
+      "pred_max15": 115.49513695169082,
+      "pred_hi_max15": 117.36485229535958,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 5,
+      "pred": 95.86239844583461,
+      "pred_max15": 113.05765089312733,
+      "pred_hi_max15": 112.02443094241791,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 6,
+      "pred": 109.73013142004619,
+      "pred_max15": 115.8401235070612,
+      "pred_hi_max15": 121.44256529654983,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 7,
+      "pred": 130.09401449434094,
+      "pred_max15": 146.72293869465594,
+      "pred_hi_max15": 152.9643405348339,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 8,
+      "pred": 170.3467953911332,
+      "pred_max15": 180.94045388007962,
+      "pred_hi_max15": 188.34326189826797,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 9,
+      "pred": 174.29175124445396,
+      "pred_max15": 185.1126294305218,
+      "pred_hi_max15": 188.70689946058266,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 10,
+      "pred": 172.32967664395446,
+      "pred_max15": 182.33529617454369,
+      "pred_hi_max15": 185.36263464457556,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 11,
+      "pred": 181.38243315688783,
+      "pred_max15": 191.55873203442513,
+      "pred_hi_max15": 195.20644491402723,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 12,
+      "pred": 109.49768437789889,
+      "pred_max15": 128.60779851032902,
+      "pred_hi_max15": 137.90525117375535,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 13,
+      "pred": 178.1650689364585,
+      "pred_max15": 187.12910785623424,
+      "pred_hi_max15": 190.56394770399643,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 14,
+      "pred": 175.14653774556598,
+      "pred_max15": 184.08834674022535,
+      "pred_hi_max15": 188.44688213568818,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 15,
+      "pred": 164.74047730548827,
+      "pred_max15": 181.33194614393324,
+      "pred_hi_max15": 185.95479636386827,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 16,
+      "pred": 164.91273986687114,
+      "pred_max15": 176.53052193461494,
+      "pred_hi_max15": 181.69128233629397,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 17,
+      "pred": 136.68569484679134,
+      "pred_max15": 157.86294994501307,
+      "pred_hi_max15": 177.18149318666102,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 18,
+      "pred": 156.9269614698242,
+      "pred_max15": 166.73503159610095,
+      "pred_hi_max15": 177.20823933869005,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 19,
+      "pred": 141.30107688457434,
+      "pred_max15": 153.7401857535485,
+      "pred_hi_max15": 158.7416194477919,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 20,
+      "pred": 115.25381290402868,
+      "pred_max15": 122.91537714852284,
+      "pred_hi_max15": 130.35257082811003,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 21,
+      "pred": 113.52811215847738,
+      "pred_max15": 117.69676858492653,
+      "pred_hi_max15": 120.48899457750218,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 22,
+      "pred": 109.0153865192223,
+      "pred_max15": 117.78636479406384,
+      "pred_hi_max15": 119.47422976627945,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-10",
+      "hour": 23,
+      "pred": 106.99993716216424,
+      "pred_max15": 116.49430743973899,
+      "pred_hi_max15": 118.90119725282075,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 0,
+      "pred": 53.45473375202862,
+      "pred_max15": 58.66485305008888,
+      "pred_hi_max15": 66.84493422655841,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 1,
+      "pred": 96.88340436226883,
+      "pred_max15": 101.84666380060064,
+      "pred_hi_max15": 109.03989627889005,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 2,
+      "pred": 96.73369922874362,
+      "pred_max15": 104.40028827153826,
+      "pred_hi_max15": 109.11401131069722,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 3,
+      "pred": 96.27312840192518,
+      "pred_max15": 102.90447304985902,
+      "pred_hi_max15": 108.0844414731298,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 4,
+      "pred": 102.99858684320505,
+      "pred_max15": 109.88613083470857,
+      "pred_hi_max15": 110.64436135762368,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 5,
+      "pred": 89.67777179968199,
+      "pred_max15": 106.07407268218792,
+      "pred_hi_max15": 103.28524520894389,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 6,
+      "pred": 105.11197029312962,
+      "pred_max15": 112.17286194158832,
+      "pred_hi_max15": 115.54668764850344,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 7,
+      "pred": 68.58215323717188,
+      "pred_max15": 91.73344095897725,
+      "pred_hi_max15": 102.77231489292126,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 8,
+      "pred": 43.83503494544805,
+      "pred_max15": 43.29359526976062,
+      "pred_hi_max15": 50.41864879215998,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 9,
+      "pred": 25.69718082493417,
+      "pred_max15": 28.083867232891123,
+      "pred_hi_max15": 35.13900471779886,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 10,
+      "pred": 26.229365460834828,
+      "pred_max15": 28.43857163913242,
+      "pred_hi_max15": 35.446412716578976,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 11,
+      "pred": 27.414818941177373,
+      "pred_max15": 29.213358324304252,
+      "pred_hi_max15": 39.06154689012049,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 12,
+      "pred": 26.92663593258457,
+      "pred_max15": 29.10274391230762,
+      "pred_hi_max15": 41.2958872544053,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 13,
+      "pred": 27.140563002070618,
+      "pred_max15": 28.87972765066532,
+      "pred_hi_max15": 38.89229330203755,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 14,
+      "pred": 27.42010098790277,
+      "pred_max15": 29.289569372321058,
+      "pred_hi_max15": 38.23925415841996,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 15,
+      "pred": 27.086116324137503,
+      "pred_max15": 28.704986989485565,
+      "pred_hi_max15": 36.93474235988695,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 16,
+      "pred": 31.184734467603562,
+      "pred_max15": 32.719213382659746,
+      "pred_hi_max15": 35.40621212634926,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 17,
+      "pred": 30.47171437975091,
+      "pred_max15": 32.74234253211162,
+      "pred_hi_max15": 41.51314518749845,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 18,
+      "pred": 30.469798619052437,
+      "pred_max15": 32.25468086800122,
+      "pred_hi_max15": 37.46434267532634,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 19,
+      "pred": 29.986558114286012,
+      "pred_max15": 30.997687231766026,
+      "pred_hi_max15": 32.10424228712635,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 20,
+      "pred": 30.474545873344493,
+      "pred_max15": 31.0768496375908,
+      "pred_hi_max15": 36.38645701207362,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 21,
+      "pred": 30.250727314731524,
+      "pred_max15": 30.289662156933378,
+      "pred_hi_max15": 32.75591687746344,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 22,
+      "pred": 31.067778111532338,
+      "pred_max15": 30.39545252338378,
+      "pred_hi_max15": 33.86278291289608,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-11",
+      "hour": 23,
+      "pred": 31.381678173577612,
+      "pred_max15": 31.470291779313623,
+      "pred_hi_max15": 34.03237326291454,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 0,
+      "pred": 22.65022757922242,
+      "pred_max15": 22.572079326018684,
+      "pred_hi_max15": 23.133507469964012,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 1,
+      "pred": 22.60766280209008,
+      "pred_max15": 22.81810083287078,
+      "pred_hi_max15": 24.26856402069542,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 2,
+      "pred": 22.510617858440998,
+      "pred_max15": 22.59451544222382,
+      "pred_hi_max15": 24.28576657105778,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 3,
+      "pred": 22.614951516662003,
+      "pred_max15": 22.958862413585308,
+      "pred_hi_max15": 24.51997025523732,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 4,
+      "pred": 22.631750290322298,
+      "pred_max15": 22.95174457227076,
+      "pred_hi_max15": 24.50121675735869,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 5,
+      "pred": 22.507569991183278,
+      "pred_max15": 22.89066833397163,
+      "pred_hi_max15": 24.46711325566926,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 6,
+      "pred": 22.532037833621843,
+      "pred_max15": 22.881092748167642,
+      "pred_hi_max15": 24.570587643590752,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 7,
+      "pred": 22.50747245495634,
+      "pred_max15": 23.048872014526236,
+      "pred_hi_max15": 25.160049180092994,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 8,
+      "pred": 22.82333772225769,
+      "pred_max15": 23.27477536764651,
+      "pred_hi_max15": 25.189381160443265,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 9,
+      "pred": 22.89802468695447,
+      "pred_max15": 23.036311635042207,
+      "pred_hi_max15": 25.082413638005296,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 10,
+      "pred": 22.958760975367127,
+      "pred_max15": 23.274434795282406,
+      "pred_hi_max15": 25.472170606474496,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 11,
+      "pred": 23.44641922785591,
+      "pred_max15": 23.567521992184556,
+      "pred_hi_max15": 25.786123928220892,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 12,
+      "pred": 22.7922496223417,
+      "pred_max15": 23.06281667975848,
+      "pred_hi_max15": 26.306743761979252,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 13,
+      "pred": 23.10651540983655,
+      "pred_max15": 22.9924601506179,
+      "pred_hi_max15": 25.33322348337155,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 14,
+      "pred": 23.20448071345636,
+      "pred_max15": 23.23651575310978,
+      "pred_hi_max15": 25.358611183919383,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 15,
+      "pred": 23.174317764347194,
+      "pred_max15": 23.3033932926626,
+      "pred_hi_max15": 25.179625291962054,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 16,
+      "pred": 23.11915926028958,
+      "pred_max15": 23.364633113799787,
+      "pred_hi_max15": 25.33389151743047,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 17,
+      "pred": 22.81313441614742,
+      "pred_max15": 23.08607417305868,
+      "pred_hi_max15": 25.069761912052545,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 18,
+      "pred": 22.958833154115315,
+      "pred_max15": 23.10131305273846,
+      "pred_hi_max15": 24.788705623698664,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 19,
+      "pred": 22.996005739219793,
+      "pred_max15": 23.16125931966413,
+      "pred_hi_max15": 25.023660231671727,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 20,
+      "pred": 23.075178160491376,
+      "pred_max15": 23.12906975169187,
+      "pred_hi_max15": 25.39245279001136,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 21,
+      "pred": 23.105344678133307,
+      "pred_max15": 23.084004338775845,
+      "pred_hi_max15": 25.28501863985387,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 22,
+      "pred": 23.056320964131526,
+      "pred_max15": 23.08298993457693,
+      "pred_hi_max15": 24.989436601230107,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-12",
+      "hour": 23,
+      "pred": 23.12318744310274,
+      "pred_max15": 24.169719814575057,
+      "pred_hi_max15": 26.22301776334001,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 0,
+      "pred": 28.34139244124646,
+      "pred_max15": 27.379070789916835,
+      "pred_hi_max15": 30.781805283042758,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 1,
+      "pred": 28.983079730397474,
+      "pred_max15": 27.679613893626282,
+      "pred_hi_max15": 30.260616544076857,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 2,
+      "pred": 29.24395961115256,
+      "pred_max15": 27.792110688582323,
+      "pred_hi_max15": 32.49409932388531,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 3,
+      "pred": 28.855623781222487,
+      "pred_max15": 27.61237137395831,
+      "pred_hi_max15": 30.315888214208453,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 4,
+      "pred": 28.930081350880716,
+      "pred_max15": 27.608309723407995,
+      "pred_hi_max15": 31.28271302050725,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 5,
+      "pred": 28.785925485133664,
+      "pred_max15": 27.635726150048736,
+      "pred_hi_max15": 30.808683395250835,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 6,
+      "pred": 48.83792829579534,
+      "pred_max15": 56.086851744275315,
+      "pred_hi_max15": 42.16764528298622,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 7,
+      "pred": 79.03364378073191,
+      "pred_max15": 109.00323915967833,
+      "pred_hi_max15": 114.84799764110922,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 8,
+      "pred": 171.8174016187727,
+      "pred_max15": 183.81972960379912,
+      "pred_hi_max15": 190.04299945936245,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 9,
+      "pred": 169.2520149557927,
+      "pred_max15": 180.09070296016537,
+      "pred_hi_max15": 184.6566124540424,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 10,
+      "pred": 168.8940781734503,
+      "pred_max15": 179.199884825464,
+      "pred_hi_max15": 183.97744352187388,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 11,
+      "pred": 172.2131775717332,
+      "pred_max15": 179.7092480572916,
+      "pred_hi_max15": 183.94441111806813,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 12,
+      "pred": 108.7595650208512,
+      "pred_max15": 124.71063700604505,
+      "pred_hi_max15": 131.15606170004457,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 13,
+      "pred": 171.46590051187755,
+      "pred_max15": 181.62631472611292,
+      "pred_hi_max15": 185.97367521328485,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 14,
+      "pred": 169.9670418106023,
+      "pred_max15": 178.15426107871372,
+      "pred_hi_max15": 184.46561693012833,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 15,
+      "pred": 161.5497815006079,
+      "pred_max15": 173.03948020920316,
+      "pred_hi_max15": 179.98483686321512,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 16,
+      "pred": 157.42498528918955,
+      "pred_max15": 166.36661282331804,
+      "pred_hi_max15": 180.03866272329105,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 17,
+      "pred": 135.59297150870134,
+      "pred_max15": 157.8131060077571,
+      "pred_hi_max15": 164.6733539877875,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 18,
+      "pred": 152.91478078988862,
+      "pred_max15": 162.87489064985812,
+      "pred_hi_max15": 181.1855324340769,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 19,
+      "pred": 136.35746753591545,
+      "pred_max15": 151.79367699815262,
+      "pred_hi_max15": 162.4867864294308,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 20,
+      "pred": 120.13893898791231,
+      "pred_max15": 127.22045359622315,
+      "pred_hi_max15": 134.68133041408854,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 21,
+      "pred": 121.12411598183017,
+      "pred_max15": 128.74736525040984,
+      "pred_hi_max15": 135.52503600513492,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 22,
+      "pred": 111.76037399936926,
+      "pred_max15": 119.2450600644025,
+      "pred_hi_max15": 123.30755617006174,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-13",
+      "hour": 23,
+      "pred": 106.9214118397526,
+      "pred_max15": 118.54035736193669,
+      "pred_hi_max15": 121.61400555514956,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 0,
+      "pred": 72.30558629895904,
+      "pred_max15": 76.02162173846357,
+      "pred_hi_max15": 79.2803142653392,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 1,
+      "pred": 110.97367509576964,
+      "pred_max15": 118.8490544741564,
+      "pred_hi_max15": 119.9500569718737,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 2,
+      "pred": 109.09064769650467,
+      "pred_max15": 116.60232054927214,
+      "pred_hi_max15": 122.65196981413824,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 3,
+      "pred": 110.35362466601087,
+      "pred_max15": 118.49635674144913,
+      "pred_hi_max15": 120.93584147973554,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 4,
+      "pred": 110.23365241682528,
+      "pred_max15": 117.95546735129805,
+      "pred_hi_max15": 118.62009232644418,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 5,
+      "pred": 101.19660786973758,
+      "pred_max15": 116.23416541338378,
+      "pred_hi_max15": 119.74976067365897,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 6,
+      "pred": 113.39970366394873,
+      "pred_max15": 119.1155334931102,
+      "pred_hi_max15": 131.6283018066567,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 7,
+      "pred": 131.45005115206564,
+      "pred_max15": 150.22594564415988,
+      "pred_hi_max15": 161.2447101123111,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 8,
+      "pred": 171.75622793924356,
+      "pred_max15": 184.0802357585761,
+      "pred_hi_max15": 191.68772460467463,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 9,
+      "pred": 171.82421702033312,
+      "pred_max15": 181.44922834872622,
+      "pred_hi_max15": 186.6503854976411,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 10,
+      "pred": 175.44827696847247,
+      "pred_max15": 188.7416541100979,
+      "pred_hi_max15": 192.82534859199708,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 11,
+      "pred": 171.25643473855516,
+      "pred_max15": 180.84517336540011,
+      "pred_hi_max15": 186.905768611107,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 12,
+      "pred": 114.16414006739812,
+      "pred_max15": 134.25998712710677,
+      "pred_hi_max15": 144.84043009120617,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 13,
+      "pred": 178.14070373516003,
+      "pred_max15": 186.0852093106504,
+      "pred_hi_max15": 190.7607900465987,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 14,
+      "pred": 176.99176340455503,
+      "pred_max15": 185.9821953693215,
+      "pred_hi_max15": 189.7856839104808,
+      "alarm_threshold": 187.0,
+      "alarm": true
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 15,
+      "pred": 165.40487347399093,
+      "pred_max15": 179.66913083847632,
+      "pred_hi_max15": 182.79225306901353,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 16,
+      "pred": 171.0118894700815,
+      "pred_max15": 176.92438443699947,
+      "pred_hi_max15": 182.9706970940721,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 17,
+      "pred": 131.24889460980737,
+      "pred_max15": 155.32763889631477,
+      "pred_hi_max15": 162.8067363281941,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 18,
+      "pred": 158.02413134484166,
+      "pred_max15": 166.2320386659891,
+      "pred_hi_max15": 177.40108173578201,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 19,
+      "pred": 150.51408356596508,
+      "pred_max15": 161.18512119364527,
+      "pred_hi_max15": 170.5993305294496,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 20,
+      "pred": 131.47746541065246,
+      "pred_max15": 138.03107359757857,
+      "pred_hi_max15": 151.15833755940764,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 21,
+      "pred": 130.05062501642507,
+      "pred_max15": 138.15033371298048,
+      "pred_hi_max15": 138.64779782491075,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 22,
+      "pred": 117.37581525158869,
+      "pred_max15": 123.94064424063224,
+      "pred_hi_max15": 127.52414551874092,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    },
+    {
+      "date": "2021-09-14",
+      "hour": 23,
+      "pred": 110.47825521904839,
+      "pred_max15": 122.83908463370419,
+      "pred_hi_max15": 127.88834787302956,
+      "alarm_threshold": 187.0,
+      "alarm": false
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 L1 점 예측 vs 분위수 0.9 비교 (src/quantile_analysis.py 생성)
-실행 환경: Python 3.11.16, numpy 2.4.6, pandas 3.0.6, lightgbm 4.7.0
+실행 환경: Python 3.14.7, numpy 2.5.3, pandas 3.0.6, lightgbm 4.7.0
 학습: strict / 복제 가중치 0.3 / 시드 [0, 1, 2] / 같은 나무 설정
 평가: 고유일 & train_ok. 아래 수치는 시드 예측을 평균한 앙상블 기준.
 reference: 기존 h7_full 재현용. 당일 실제 is_off 포함 → 미래 운영 성능 아님.
