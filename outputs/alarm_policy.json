@@ -167,9 +167,9 @@
     "day_actual_peak_days": 42
   },
   "audit_cases": 176,
-  "elapsed_seconds": 37.74255119997542,
+  "elapsed_seconds": 30.334472799997457,
   "environment": {
-    "python": "3.13.12",
+    "python": "3.14.7",
     "numpy": "2.5.3",
     "pandas": "3.0.6",
     "lightgbm": "4.7.0"

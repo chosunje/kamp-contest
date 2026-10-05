@@ -214,7 +214,7 @@ def main():
             'Ridge 단독', 'LGBM+Ridge 7:3', '공휴일 상호작용 피처', '공휴일 행 가중 5배']
     # 6배는 MAE 가 3배와 0.02 차이(흔들림 이내)라 "악화" 로 기각할 수 없다.
     # peakMAE 는 오히려 6배가 낫다 → 피크를 우선할 때의 대안으로 남긴다 (model.py ALT_CFG)
-    judge = ['-', '기각', '보류 (peakMAE 는 우수)', '경보·일최대 전용으로 채택', '★ 채택',
+    judge = ['-', '기각', '보류 (peakMAE 는 우수)', '일 최대 추정 전용으로 채택', '★ 채택',
              '대안 보류 (피크 우선 시)', '기각', '기각', '기각', '기각']
     t12 = XF.loc[pick2].reset_index(drop=True)
     t12.insert(0, '설정', lab2)
@@ -287,25 +287,34 @@ def main():
              '(기상 파생변수 thi·cool 은 피크에서 1.7 to 1.8배로 커지고 원본 temp 는 오히려 줄어든다)')
 
         # 표9. 도메인 발견 → 파생변수 매핑
-        def gi(c):
-            r = G[G.피처 == c]
-            return f"{r['gain 중요도(%)'].iloc[0]:.2f}%" if len(r) else '-'
-        def sm(c):
-            r = S[S.피처 == c]
-            return f"{r['피크/전체 배율'].iloc[0]:.2f}배" if len(r) else '-'
+        # 여러 변수를 묶어 적은 행은 그 변수들의 gain 을 모두 더한다.
+        # (첫 변수만 쓰면 lag 묶음이 22.42% 대신 8.90% 로 크게 축소된다)
+        def gi(*cols):
+            r = G[G.피처.isin(cols)]
+            return f"{r['gain 중요도(%)'].sum():.2f}%" if len(r) else '-'
+        def sm(*cols):
+            r = S[S.피처.isin(cols)]
+            if not len(r):
+                return '-'
+            w = G.set_index('피처').loc[r.피처, 'gain 중요도(%)'].values  # gain 가중평균
+            v = (r['피크/전체 배율'].values * w).sum() / w.sum() if w.sum() else r['피크/전체 배율'].mean()
+            return f"{v:.2f}배"
         t9 = pd.DataFrame([
             ('생산량 800 부근에서 전력 포화', 'prod_cap', '생산량을 800에서 절단', gi('prod_cap'), sm('prod_cap')),
             ('생산량 분포가 한쪽으로 쏠림', 'prod_log', 'log(1+생산량)', gi('prod_log'), sm('prod_log')),
             ('기온 22℃ 이상에서 냉방부하 발생', 'cool', 'max(기온-22, 0)', gi('cool'), sm('cool')),
             ('기온과 습도가 함께 작용', 'thi', '불쾌지수 (기온·습도 결합)', gi('thi'), sm('thi')),
             ('전일보다 전주 동일 요일이 유사', 'lag168 / lag336 / lag_week_mean4',
-             '1주 전·2주 전·최근 4주 평균 동시각', gi('lag168'), sm('lag168')),
+             '1주 전·2주 전·최근 4주 평균 동시각',
+             gi('lag168', 'lag336', 'lag_week_mean4'), sm('lag168', 'lag336', 'lag_week_mean4')),
             ('휴무 기간이 다음 주 시차를 오염', 'lag 결측 처리 + lag_prev_op',
              '휴무·중단 구간은 결측, 직전 가동일 동시각을 별도 변수로', gi('lag_prev_op'), sm('lag_prev_op')),
             ('휴무 길이에 따라 복귀일 부하가 다름', 'off_run_prev / days_since_off',
-             '직전 연속 휴무 일수 / 마지막 휴무 이후 경과일', gi('off_run_prev'), sm('off_run_prev')),
+             '직전 연속 휴무 일수 / 마지막 휴무 이후 경과일',
+             gi('off_run_prev', 'days_since_off'), sm('off_run_prev', 'days_since_off')),
             ('부하가 기저·중·고 세 단계로 구분', 'shift / is_transition',
-             '야간·점심·주간 구분 / 전환 시각(7·12·17시)', gi('shift'), sm('shift')),
+             '야간·점심·주간 구분 / 전환 시각(7·12·17시)',
+             gi('shift', 'is_transition'), sm('shift', 'is_transition')),
             ('휴무 여부가 타깃에서 유도된 값', 'day_prod_zero',
              '생산계획만으로 만든 휴무 근사값', gi('day_prod_zero'), sm('day_prod_zero')),
         ], columns=['1장의 도메인 발견', '파생 변수', '정의', 'gain 중요도', '피크 구간 SHAP 배율'])
