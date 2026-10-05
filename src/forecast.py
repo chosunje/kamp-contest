@@ -2,16 +2,17 @@
 
   예측 시점 = 대상일의 7일 전 0시. 그 시점까지의 전력 실적만 학습에 쓴다.
   대상일의 생산계획·기상예보는 주어진다고 가정한다 (기본 h7_lag).
-  15분 최대는 시간 평균 × 시각별 계수의 참고 환산값이다 (15분 컬럼 A안).
-  15분 최대 직접 학습 결과는 predict_test.py의 pred_max15와 구분한다.
+  pred_max15는 시간 평균 × 시각별 계수의 참고 환산값이다 (15분 컬럼 A안).
+  경보용 pred_hi_max15는 별도의 15분 최대 P90 직접 학습 결과다.
 
   ★ 경보 (인수인계(2026-09-30) [2] 1순위)
     점 예측(pred)은 피크를 낮게 본다. 이것을 그대로 임계값에 대면 경보가 늦는다.
-    그래서 분위 0.9 모델을 따로 학습해 경보 후보(pred_hi)를 같이 낸다.
-    "이 시각은 임계값을 넘을 수 있다"는 판단은 pred 가 아니라 pred_hi 로 한다.
-    P90은 보정된 90% 상한이나 초과확률이 아니다. 현재 alarm은 시간 평균 기준이다.
-    기본 임계는 학습 상위 5%의 임시 상대 기준이며 공식 계약전력 임계는 미확정이다.
-    현재 피처에는 실제 전력 유래 is_off가 남아 있어 사후 시연으로 해석한다.
+    15분 최대 분위 0.9 모델을 따로 학습해 경보 후보(pred_hi_max15)를 같이 낸다.
+    위험 시각은 pred_hi_max15와 15분 최대 임계값의 비교로 판단한다.
+    D10 프로젝트 기본 alarm은 15분 최대 P90 >= 학습 15분 최대 Q95다.
+    경보 입력은 당일 실제 is_off와 예측 시점 이후 전력을 제외한다.
+    P90은 보정된 90% 상한이나 초과확률이 아니다. 계약전력 초과 판정과 구분한다.
+    기존 시간 평균 점 예측의 피처에는 실제 is_off가 남아 있어 사후 시연으로 해석한다.
 
 실행: python src/forecast.py               (마지막 예측 가능일을 자동 선택)
       python src/forecast.py 20210914      (날짜 지정)
@@ -21,10 +22,11 @@ import sys
 import numpy as np, pandas as pd
 from features import build, peak_ratio
 from model import make_model, CLONE_W, FINAL_CFG, ALARM_CFG
+import alarm_policy as policy
 from preprocess import ROOT
 
 HORIZON = 7      # 일. 대상일 7일 전에 예측한다
-ALARM_Q = .95    # 시간 평균의 학습 상위 5% 임시 경보 기준. 공식 임계는 미확정(D10)
+ALARM_Q = policy.ALARM_Q    # D10 프로젝트 기본: 학습 15분 최대의 Q95
 
 
 def _weights(tr, clone, peak_w):
@@ -42,10 +44,11 @@ def forecast(X, target_date, cols=None, model='lgbm', train_flag='train_ok_stric
 
     돌려주는 열
       pred          시간 평균 전력의 점 예측
-      pred_hi       시간 평균의 분위 0.9 경보 후보 (포함률 미보정)
+      pred_hi       기존 시간 평균 P90 참고값 (포함률 미보정)
       pred_max15    pred를 시각별 계수로 환산한 15분 최대 참고값 (D20 A안 가정)
-      pred_hi_max15 pred_hi 를 같은 방식으로 환산한 값
-      alarm         시간 평균 pred_hi가 시간 평균 임계값을 넘는가
+      pred_hi_max15 15분 최대를 직접 학습한 P90 경보 후보
+      pred_hi_max15_환산 기존 시간 평균 P90의 참고 환산값
+      alarm         pred_hi_max15가 학습 15분 최대 Q95 또는 지정 임계값 이상인가
     """
     cols = cols or FINAL_CFG['cols']
     params = FINAL_CFG['params'] if params is None else params
@@ -63,16 +66,22 @@ def forecast(X, target_date, cols=None, model='lgbm', train_flag='train_ok_stric
     gh = make_model(ALARM_CFG['model'], seed, ALARM_CFG['params']).fit(
         tr[ALARM_CFG['cols']], tr.target, sample_weight=_weights(tr, 'weight', 1.0))
 
-    # 임계값도 학습 구간에서만 정한다 (대상일을 보고 정하면 누수)
-    thr = tr.target.quantile(ALARM_Q) if thr is None else float(thr)
+    # 프로젝트 경보는 15분 최대를 직접 학습하고 cutoff 이후 입력을 마스킹한다.
+    alarm_models, alarm_meta = policy.fit_models(X, cutoff)
+    threshold_basis = 'relative_q95' if thr is None else 'provided_absolute'
+    thr = alarm_meta['threshold_q95'] if thr is None else policy.threshold(None, value=thr)
     ratio = peak_ratio(tr).ratio_a                  # 환산 계수도 학습 구간에서만 뽑는다
 
     out = day[['dt', '날짜', 'hour']].copy()
     out['pred'] = g.predict(day[cols])
     out['pred_hi'] = gh.predict(day[ALARM_CFG['cols']])
     out['pred_max15'] = out.pred * out.hour.map(ratio)
-    out['pred_hi_max15'] = out.pred_hi * out.hour.map(ratio)
-    out['alarm'] = out.pred_hi >= thr
+    out['pred_hi_max15_환산'] = out.pred_hi * out.hour.map(ratio)
+    out['pred_hi_max15'] = policy.predict(alarm_models, X, cutoff, day.index)
+    out['alarm_threshold'] = thr
+    out['alarm_basis'] = threshold_basis
+    out['alarm_target'] = policy.ALARM_TARGET
+    out['alarm'] = policy.alarm_flags(out.pred_hi_max15, thr)
     out['actual'] = day.target.values                          # 실적이 있으면 채워진다
     out['actual_max15'] = day.target_max15.values
     return out, cutoff, len(tr), thr
@@ -89,7 +98,7 @@ if __name__ == '__main__':
     out.to_csv(path, index=False, encoding='utf-8-sig')
 
     print(f'대상일 {target} · 예측 시점 {cutoff} (7일 전) · 학습 {n_tr}행')
-    print(out[['hour', 'pred', 'pred_hi', 'pred_max15', 'alarm',
+    print(out[['hour', 'pred', 'pred_hi', 'pred_hi_max15', 'pred_max15', 'alarm',
                'actual', 'actual_max15']].round(1).to_string(index=False))
 
     e = out.actual - out.pred
@@ -97,25 +106,29 @@ if __name__ == '__main__':
           f'· 최대오차 {e.abs().max():.1f}')
     i, j, k = out.pred.idxmax(), out.actual.idxmax(), out.pred_hi.idxmax()
     # 시간별 P90의 최대는 일 최대의 90% 상한을 보장하지 않는다.
-    print(f'[일 최대] 추정 {out.pred_hi[k]:.0f} (분위 0.9, 15분 환산 {out.pred_hi_max15[k]:.0f}) '
+    print(f'[일 최대 · 시간 평균 참고] 추정 {out.pred_hi[k]:.0f} '
+          f'(분위 0.9, 참고 환산 {out["pred_hi_max15_환산"][k]:.0f}) '
           f'· 점 예측 {out.pred[i]:.0f} (참고, 낮게 나온다) '
-          f'/ 실제 {out.actual[j]:.0f} (15분 최대 {out.actual_max15[j]:.0f}, {out.hour[j]}시)')
+          f'/ 실제 시간 평균 최대 {out.actual[j]:.0f} ({out.hour[j]}시)')
+    j15 = out.actual_max15.idxmax()
+    print(f'[일 최대 · 15분 경보 후보] 직접 P90 최대 {out.pred_hi_max15.max():.0f} '
+          f'/ 실제 15분 최대 {out.actual_max15[j15]:.0f} ({out.hour[j15]}시)')
 
     # ★ 경보. 현장이 실제로 쓰는 산출물은 이 줄이다
     hit = out[out.alarm]
-    basis = (f'학습 구간 상위 {(1 - ALARM_Q) * 100:.0f}% · 임시 상대 기준'
+    basis = (f'학습 구간 상위 {(1 - ALARM_Q) * 100:.0f}% · 프로젝트 기본 상대 기준'
              if thr_arg is None else '사용자 지정')
-    print(f'\n[피크 경보 후보] 시간 평균 임계 {thr:.0f} ({basis})')
-    print('  P90은 포함률 미보정 후보이며 공식 계약전력 임계값은 미확정이다.')
+    print(f'\n[D10 프로젝트 경보] 15분 최대 임계 {thr:.0f} ({basis})')
+    print('  15분 최대 직접 P90 기준 · 포함률 미보정 · 계약전력 초과 판정과 별도')
     if len(hit):
-        print(f'  위험 시각 {list(hit.hour)} · P90 후보 최대 {hit.pred_hi.max():.0f} '
-              f'({hit.loc[hit.pred_hi.idxmax(), "hour"]}시)')
-        real = out[out.actual >= thr]
+        print(f'  위험 시각 {list(hit.hour)} · 15분 P90 후보 최대 {hit.pred_hi_max15.max():.0f} '
+              f'({hit.loc[hit.pred_hi_max15.idxmax(), "hour"]}시)')
+        real = out[out.actual_max15 >= thr]
         print(f'  실제 임계 초과 시각 {list(real.hour)} '
               f'→ 맞힌 시각 {sorted(set(hit.hour) & set(real.hour))}')
     else:
         print('  없음 (이 날은 임계값을 넘을 시각이 없다고 본다)')
-        real = out[out.actual >= thr]
+        real = out[out.actual_max15 >= thr]
         if len(real):
             print(f'  ※ 실제로는 {list(real.hour)} 시가 임계를 넘었다 — 놓친 경보')
     print('→', path)
