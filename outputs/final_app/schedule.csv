@@ -1,0 +1,5 @@
+﻿task_id,name,original_start,duration,earliest_start,latest_end,load,movable,resource,depends_on,recommended_start,changed
+A,예시 작업 A,14,2,8,20,8.0,True,설비 A,[],14,False
+B,예시 작업 B,14,2,8,20,10.0,True,설비 B,[],16,True
+C,예시 후속 작업 C,16,2,8,20,6.0,True,설비 A,"[""A""]",17,True
+D,예시 고정 작업 D,18,1,8,20,3.0,False,설비 B,[],18,False

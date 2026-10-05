@@ -2,7 +2,8 @@
 
   viz_perf.py 와 역할이 다르다.
     viz_perf.py     팀원 작성. error_predictions.csv (h7_full, 피크 가중치 없음) 기준
-    report_final.py 내 최종 설정(FINAL_CFG) 기준. 경보까지 포함한 한 장 요약
+    report_final.py 내 최종 설정(FINAL_CFG)와 기존 시간 평균 경보 비교의 한 장 요약
+  현재 D10 기본 경보는 15분 최대 P90/Q95이며 peak_alarm_max15.py에서 별도로 검증한다.
 
   왜 따로 만들었나: viz_perf.py 가 쓰는 예측은 피크 가중치를 넣기 전 설정이라
   "일 최대를 평균 +9.62 낮게 본다" 로 되어 있다. 최종 설정에서는 이 부호가 뒤집혔다.
@@ -106,7 +107,7 @@ def panel_day(ax, s, title):
     if len(pk):
         ax.scatter(pk.hour, pk.y, s=24, color=PEAK, zorder=7)
     # aqua 는 밝은 배경에서 대비가 낮아 직접 라벨을 붙인다 (relief 규칙)
-    ax.annotate('경보 상한', (1, s.pred_hi.iloc[1]), textcoords='offset points',
+    ax.annotate('시간 평균 P90', (1, s.pred_hi.iloc[1]), textcoords='offset points',
                 xytext=(2, 9), fontsize=9, color=HI, fontweight='bold')
     e = (s.y - s.pred).abs().mean()
     ax.set_title(f'{title}   ·   MAE {e:.1f}', color=INK)
@@ -179,7 +180,7 @@ def panel_alarm(ax, C, X):
     t = C.fold.map(thr)
     real = C.y >= t
     out = []
-    for lab, col in (('점 예측', 'pred'), ('경보 상한 (분위 0.9)', 'pred_hi')):
+    for lab, col in (('점 예측', 'pred'), ('시간 평균 P90', 'pred_hi')):
         pred = C[col] >= t
         tp = (pred & real).sum()
         out.append((lab, tp / real.sum() * 100, tp / max(pred.sum(), 1) * 100))
@@ -191,7 +192,7 @@ def panel_alarm(ax, C, X):
                 color=HI, fontweight='bold')
         ax.text(xi + .2, o[2] + 1.5, f'{o[2]:.0f}%', ha='center', fontsize=10, color=INK2)
     ax.set_xticks(x); ax.set_xticklabels([o[0] for o in out])
-    ax.set_title('피크 경보 — 무엇으로 경보를 낼 것인가', color=INK)
+    ax.set_title('기존 시간 평균 경보 비교', color=INK)
     ax.set_ylabel('%'); ax.set_ylim(0, 116)
     ax.legend(fontsize=9.5, loc='upper left'); grid(ax)
 
@@ -262,7 +263,7 @@ if __name__ == '__main__':
           Line2D([], [], color=HI, lw=1.6, ls=(0, (1, 1.6))),
           Line2D([], [], color=MUTED, lw=1.1, ls=':'),
           Line2D([], [], color=PEAK, lw=0, marker='o', ms=6)]
-    fig.legend(hs, ['실제', '예측', '경보 상한 (분위 0.9)', '목표선 (전주 같은 시각)',
+    fig.legend(hs, ['실제', '예측', '시간 평균 P90', '목표선 (전주 같은 시각)',
                     '피크 구간 (상위 5%)'],
                loc='upper left', bbox_to_anchor=(.010, .872), ncol=5, fontsize=10)
 
@@ -292,6 +293,11 @@ if __name__ == '__main__':
 [남은 약점]
   하루 중 어느 시각이 최대인지는 맞히지 못한다 (적중률 약 20%).
   경보는 "몇 시"가 아니라 "그날 위험한가"로 내야 한다. 근거는 작업내역(조선제).txt [9-3]
+
+[D10 현재 프로젝트 경보]
+  15분 최대 직접 P90 >= 학습 15분 최대 Q95. 하루에 한 번이라도 경보이면 위험일.
+  위 그림의 시간 평균 P90 비교와 구분하며 상세 검증은 peak_alarm_max15_summary.txt에 있다.
+  계약전력 초과 판정과 별도이며 P90의 90% 포함률을 보장하지 않는다.
 """, encoding='utf-8')
 
     print(f'\n[최종 모델] CORE {int(s.n):,}행 · MAE {s.MAE:.2f} / RMSE {s.RMSE:.2f} / '

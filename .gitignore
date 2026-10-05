@@ -341,3 +341,6 @@ pyrightconfig.json
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,node,visualstudiocode
+
+# 최종 시연용 학습 모델은 run_dashboard.py --rebuild로 재생성한다.
+/outputs/final_app/models/
