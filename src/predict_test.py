@@ -62,23 +62,31 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
         raise SystemExit(f'학습 행이 {len(tr)}개뿐이다. 예측 시점이 너무 이르다.')
 
     point, alarm, max15 = dict(FINAL_CFG), dict(ALARM_CFG), dict(MAX15_CFG)
+    # 15분 최대를 분위 0.9 로 직접 학습한 것. 요금 기준으로 경보를 낼 때 쓴다
+    max15_hi = dict(ALARM_CFG, target='target_max15')
     if no_plan:                                   # 생산계획이 안 오는 경우
-        point['cols'] = alarm['cols'] = max15['cols'] = FEATURES['h7_no_plan']
+        for c in (point, alarm, max15, max15_hi):
+            c['cols'] = FEATURES['h7_no_plan']
 
     ratio = peak_ratio(tr).ratio_a                # 환산 계수도 학습 구간에서만
-    thr = tr.target.quantile(ALARM_Q)
+    thr = tr.target.quantile(ALARM_Q)             # 시간 평균 기준 임계
+    thr15 = tr.target_max15.quantile(ALARM_Q)     # 15분 최대 기준 임계
 
     out = te[['dt', '날짜', 'hour']].copy()
     out['pred'] = _fit_predict(point, tr, te, point['peak_w'], seeds)
     out['pred_hi'] = _fit_predict(alarm, tr, te, 1.0, seeds)
     # 15분 최대(요금 기준). 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
-    # (CORE MAE 7.32 vs 7.87). 환산값은 비교용으로 _환산 열에 남긴다
+    # (CORE MAE 7.32 vs 7.88). 환산값은 비교용으로 _환산 열에 남긴다
     out['pred_max15'] = _fit_predict(max15, tr, te, max15['peak_w'], seeds)
+    out['pred_max15_hi'] = _fit_predict(max15_hi, tr, te, 1.0, seeds)
     out['pred_max15_환산'] = out.pred * out.hour.map(ratio)
     out['pred_hi_max15'] = out.pred_hi * out.hour.map(ratio)
+    # D10 ① 이 미확정이라 두 기준의 경보를 모두 낸다 ([0] B-1).
+    # CORE 에서는 15분 최대 기준이 정밀도 93.2% 로 시간평균(86.4%)보다 낫다  [8-6] 3번
     out['alarm'] = out.pred_hi >= thr
+    out['alarm_max15'] = out.pred_max15_hi >= thr15
     out['actual'] = te.target.values              # 진짜 테스트라면 비어 있다
-    return out, cutoff, len(tr), thr
+    return out, cutoff, len(tr), (thr, thr15)
 
 
 def day_summary(out):
@@ -93,8 +101,10 @@ def day_summary(out):
         '일최대_추정': g.pred_hi.max().round(1),            # ★ 권장 추정값 (분위 0.9)
         '일최대_점예측': g.pred.max().round(1),             # 참고용. 낮게 나온다
         '예측_피크시각': g.apply(lambda s: int(s.loc[s.pred.idxmax(), 'hour']), include_groups=False),
-        '일최대_15분환산': g.pred_hi_max15.max().round(1),
-        '경보': g.alarm.any(),
+        '일최대_15분': g.pred_max15_hi.max().round(1),       # 15분 최대를 직접 학습한 상한
+        '일최대_15분환산': g.pred_hi_max15.max().round(1),    # 참고. 시간평균 x 계수
+        '경보_시간평균': g.alarm.any(),
+        '경보_15분최대': g.alarm_max15.any(),
     })
     if out.actual.notna().any():
         d['실제_일최대'] = g.actual.max()
@@ -110,7 +120,7 @@ if __name__ == '__main__':
     dates = sorted(X['날짜'].unique())
     start, end = (int(args[0]), int(args[1])) if len(args) >= 2 else (dates[-7], dates[-1])
 
-    out, cutoff, n_tr, thr = predict_range(X, start, end, no_plan=no_plan)
+    out, cutoff, n_tr, (thr, thr15) = predict_range(X, start, end, no_plan=no_plan)
     tag = 'noplan' if no_plan else 'full'
     path = ROOT / 'outputs' / f'submission_{start}_{end}_{tag}.csv'
     out.to_csv(path, index=False, encoding='utf-8-sig')
@@ -134,5 +144,8 @@ if __name__ == '__main__':
         print(f'[피크 시각 적중] {hit:.1f}%')
     else:
         print('\n실적 열이 비어 있다 = 진짜 테스트 구간. 정확도는 계산하지 않는다.')
-    print(f'\n[경보] 임계 {thr:.0f} · 위험일 {int(D.경보.sum())}일 / {len(D)}일')
+    print(f'\n[경보] D10 ① 이 미확정이라 두 기준을 함께 낸다  [0] B-1')
+    print(f'  시간평균 기준  임계 {thr:.0f} · 위험일 {int(D.경보_시간평균.sum())}일 / {len(D)}일')
+    print(f'  15분최대 기준  임계 {thr15:.0f} · 위험일 {int(D.경보_15분최대.sum())}일 / {len(D)}일'
+          f'   ← 요금 기준. CORE 에서 정밀도 93.2% 로 더 낫다')
     print('→', path)

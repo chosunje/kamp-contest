@@ -138,8 +138,14 @@ class QuantileAnalysisTests(unittest.TestCase):
         self.assertTrue(audit.prediction_max_delta.eq(0).all())
         self.assertTrue(audit.reference_is_off_changed.any())
         off_date = 20210502
-        self.assertTrue(audit.loc[audit['날짜'] == off_date,
-                                 'reference_is_off_changed'].all())
+        # 전력을 '바꾸면' 여전히 is_off 가 흔들린다 — reference 규약의 누수는 그대로 탐지된다.
+        # 전력을 '지우면' 더 이상 흔들리지 않는다. preprocess.load() 가 그 경우에만
+        # 생산계획(일 생산량 0)으로 휴무를 판정하도록 바뀌었기 때문이다 (D09 가정).
+        # 진짜 테스트 구간은 전력이 비어 있으므로 이쪽이 실제 운영 조건이다 —
+        # 고치기 전에는 휴무일을 가동일로 보고 예측해 그 날 MAE 가 0.8 → 19.0 이었다.
+        at = audit[audit['날짜'] == off_date]
+        self.assertTrue(at.loc[at['mode'] == 'changed', 'reference_is_off_changed'].all())
+        self.assertFalse(at.loc[at['mode'] == 'deleted', 'reference_is_off_changed'].any())
 
     def test_memory_input_does_not_mutate_callers_or_change_features(self):
         raw_before = self.raw.copy(deep=True)
