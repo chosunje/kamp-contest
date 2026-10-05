@@ -68,8 +68,11 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS, thr=None):
         raise SystemExit(f'학습 행이 {len(tr)}개뿐이다. 예측 시점이 너무 이르다.')
 
     point, alarm, max15 = dict(FINAL_CFG), dict(ALARM_CFG), dict(MAX15_CFG)
+    # 15분 최대를 분위 0.9 로 직접 학습한 것. 요금 기준으로 경보를 낼 때 쓴다
+    max15_hi = dict(ALARM_CFG, target='target_max15')
     if no_plan:                                   # 생산계획이 안 오는 경우
-        point['cols'] = alarm['cols'] = max15['cols'] = FEATURES['h7_no_plan']
+        for c in (point, alarm, max15, max15_hi):
+            c['cols'] = FEATURES['h7_no_plan']
 
     ratio = peak_ratio(tr).ratio_a                # 환산 계수도 학습 구간에서만
     alarm_models, alarm_meta = policy.fit_models(X, cutoff, no_plan=no_plan, seeds=seeds)
@@ -82,6 +85,7 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS, thr=None):
     # D20 A안 가정의 15분 최대. 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
     # (CORE MAE 7.32 vs 7.87). 환산값은 비교용으로 _환산 열에 남긴다
     out['pred_max15'] = _fit_predict(max15, tr, te, max15['peak_w'], seeds)
+    out['pred_max15_hi'] = _fit_predict(max15_hi, tr, te, 1.0, seeds)
     out['pred_max15_환산'] = out.pred * out.hour.map(ratio)
     out['pred_hi_max15_환산'] = out.pred_hi * out.hour.map(ratio)
     out['pred_hi_max15'] = policy.predict(alarm_models, X, cutoff, te.index, no_plan=no_plan)

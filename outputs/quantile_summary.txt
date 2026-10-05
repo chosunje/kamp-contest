@@ -1,5 +1,5 @@
 L1 점 예측 vs 분위수 0.9 비교 (src/quantile_analysis.py 생성)
-실행 환경: Python 3.13.12, numpy 2.5.3, pandas 3.0.6, lightgbm 4.7.0
+실행 환경: Python 3.11.16, numpy 2.4.6, pandas 3.0.6, lightgbm 4.7.0
 학습: strict / 복제 가중치 0.3 / 시드 [0, 1, 2] / 같은 나무 설정
 평가: 고유일 & train_ok. 아래 수치는 시드 예측을 평균한 앙상블 기준.
 reference: 기존 h7_full 재현용. 당일 실제 is_off 포함 → 미래 운영 성능 아님.
@@ -84,7 +84,7 @@ d1의 학습 복제 가중치는 학습 시점 이전 곡선만으로 판정.
 [미래 전력 변경 검증]
   88일 × 삭제/변경 = 176건 통과.
   D-1 피처 동일, 예측 최대 변화 0.0.
-  reference 당일 is_off가 달라진 검증 42건.
+  reference 당일 is_off가 달라진 검증 21건.
 
 [해석 및 한계]
   P90은 경보용 상한 후보이며 점 예측을 대체하지 않는다.
