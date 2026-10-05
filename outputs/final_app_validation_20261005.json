@@ -1,0 +1,37 @@
+{
+  "cutoff": "2021-09-08T00:00:00",
+  "audit": [
+    {
+      "variant": "deleted",
+      "forecast_rows": 168,
+      "features_equal": true,
+      "weights_equal": true,
+      "threshold_equal": true,
+      "alarm_equal": true,
+      "max_prediction_difference": {
+        "point": 2.842170943040401e-14,
+        "max15": 5.684341886080802e-14,
+        "alarm": 2.842170943040401e-14
+      }
+    },
+    {
+      "variant": "changed",
+      "forecast_rows": 168,
+      "features_equal": true,
+      "weights_equal": true,
+      "threshold_equal": true,
+      "alarm_equal": true,
+      "max_prediction_difference": {
+        "point": 2.842170943040401e-14,
+        "max15": 5.684341886080802e-14,
+        "alarm": 2.842170943040401e-14
+      }
+    }
+  ],
+  "note": "Full trained text model inference; future power excluded. CSV serialization tolerance 1e-12.",
+  "validation_date": "2026-10-05",
+  "source_fingerprint": "f69e722baa1b966fc51bfee1f73dc3ca71cca2d7f13e838780eda01ff76f49fc",
+  "raw_sha256": "8f7af2e49366c93e1d6f5fdef4b5e350066c1792ac463c2c2886e370f4674830",
+  "start": "2021-09-08",
+  "end": "2021-09-14"
+}

@@ -4,7 +4,7 @@
     python run_all.py
 
 모델 비교(model.py)는 기본 설정 20개 x 시드 3개 x 월별 폴드를 반복 학습한다.
-실행 시간은 환경에 따라 달라진다. 전체 파이프라인은 15단계다.
+실행 시간은 환경에 따라 달라진다. 전체 파이프라인은 16단계다.
 전처리·EDA만 다시 만들려면 STEPS 앞쪽 5개만 개별 실행하면 된다.
 """
 import runpy, sys
@@ -28,6 +28,7 @@ STEPS = [
     ('1주 앞 예측 + 피크 경보', 'forecast.py'),
     ('테스트 예측 파일 생성', 'predict_test.py'),
     ('최종 성능 한 장 요약', 'report_final.py'),
+    ('최종 모델·저감 일정·HTML 화면', 'final_app.py'),
 ]
 
 
