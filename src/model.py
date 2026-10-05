@@ -25,8 +25,8 @@ FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
 CORE_FOLDS = ['2021-07', '2021-08', '2021-09']
 CORE = 'CORE(7 to 9월)'
 SEEDS = (0, 1, 2)    # 같은 설정을 시드만 바꿔 여러 번 돌린다 (차이가 흔들림보다 큰지 보려고)
-CLONE_W = 0.3        # clone='weight' 일 때 복제일에 줄 가중치
-NEEDS_FILL = {'rf'}  # 결측을 직접 못 다루는 모델. 트리라서 -999 로 채우면 분기로 갈라낸다
+CLONE_W = 0.3        # D07: 강화 점 예측 재비교 후 유지(2026-10-05). .1은 피크 MAE가 낮다
+NEEDS_FILL = {'rf'}  # RF 비교 실험의 결측 채우기 방식을 -999로 고정한다
 
 # ── 비교 실험 ──────────────────────────────────────────────────────────────
 # BASE 를 기준으로, 각 run 은 "한 가지만" 덮어쓴다. 두 가지를 동시에 바꾸면
@@ -35,7 +35,7 @@ BASE = dict(cols=FEATURES['full'], model='lgbm', train_flag='train_ok_strict', c
 
 RUNS = {
     '0 기준 (lgbm·full·strict·keep)': {},
-    # 축 1. 복제일 처리 (D07 잠정 0.3) — 161일을 어떻게 다룰 것인가
+    # 축 1. 복제일 처리 — 비교 기준은 유지. 현재 FINAL_CFG는 재비교 후 0.3 유지(D07)
     '1 복제일 학습 제외':             dict(clone='drop'),
     f'2 복제일 가중치 {CLONE_W}':      dict(clone='weight'),
     # 축 2. 학습 행 (작업내역(조선제).txt [3] 보강 1) — 생산기록 누락 의심일 15일을 뺄 것인가
@@ -126,7 +126,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
     hol_w      학습 구간 공휴일 행에 곱할 가중치 (공휴일 사례가 적어서 묻히는 문제 대응)
     seed       난수 시드. 같은 설정을 여러 시드로 돌려 "차이가 흔들림보다 큰지" 본다
     target     학습·평가에 쓸 타깃 열. 'target' 은 시간 평균, 'target_max15' 는 15분 최대다.
-               요금은 15분 최대로 매겨지므로 후자를 직접 학습하는 경로가 따로 필요하다 (6차 실험)
+               D20 A안 가정의 피크 분석을 위해 후자를 직접 학습하는 경로를 둔다 (6차 실험)
     decay_days 오래된 행의 가중치를 줄이는 반감기(일). None 이면 전부 같은 무게.
                6차 실험에서 기각됐다 (반감기가 짧을수록 단조롭게 악화) — 재현용으로만 남김
     """
@@ -143,7 +143,8 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
             tr = tr[~tr.is_clone]
         if len(va) == 0 or len(tr) < 200:
             continue                                        # 6월은 고유일이 2일뿐이라 건너뛸 수 있다
-        thr = tr[target].quantile(.95)                      # 피크 임계: 학습 구간 상위 5% (D10 확정 전 임시)
+        # D10: 타깃별 학습 상위 5%를 임시 분석 기준으로 사용한다. 계약전력 기준은 미확정.
+        thr = tr[target].quantile(.95)
         # 가중치는 곱해서 쌓는다. 전부 1.0 이면 None 으로 넘겨 기존 동작과 완전히 같게 둔다
         w = np.ones(len(tr))
         if clone == 'weight':
@@ -261,15 +262,18 @@ FIX = {
 #   그중 세 지표가 모두 기준보다 낫고 RMSE 가 가장 낮은 43번을 대표로 쓴다.
 FINAL_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, peak_w=PEAK_W,
                  params={**SHALLOW, **SLOW, 'feature_fraction': 0.6})
+# 2026-10-05 D07 재비교: 시간 평균·15분 최대의 MAE/RMSE 기준으로 0.3 유지.
+# .1의 피크 MAE 우위를 별도 기록했다. P군(h7_win/h7_plus)은 기본 설정에 넣지 않는다.
 # 33번. 피크를 우선한다면 이쪽 (peakMAE 11.23 / MAE 는 기준보다 여전히 낮다)
 ALT_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
-# 분위 0.9. 점 예측용이 아니다 (MAE 14.12 로 나쁘다). 피크 경보의 "상한선" 전용이다.
-# peakMAE 8.13 으로 모든 설정 중 압도적으로 낮다 → 인수인계 [2] 1순위 경보에 쓴다
+# 분위 0.9는 시간 평균 피크 경보 후보로 보존한다. 점 예측은 L1을 유지한다.
+# 보정된 90% 상한/초과확률이 아니며, P90의 최적 복제 가중치를 재선정한 결과도 아니다.
+# 별도 D-1 L1/P90 비교와 이 강화 설정의 사후 검증 수치는 조건이 달라 구분한다.
 ALARM_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W,
                  params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.9})
 
 # ── 15분 최대 전용 (6차 실험) ───────────────────────────────────────────────
-# 요금은 시간 평균이 아니라 15분 최대로 매겨진다 (D10 ①). 그 값을 내는 두 경로를
+# D20 A안 가정의 15분 최대 피크 분석을 위해 그 값을 내는 두 경로를
 # 같은 기준에서 비교했더니 직접 학습이 분명히 나았다 (CORE MAE 7.32 vs 환산 7.87,
 # 흔들림 0.11/0.23). 환산은 시각별 평균 비율을 쓰므로 그날의 사정을 반영하지 못한다.
 #   직접 학습  타깃만 target_max15 로 바꾼다. 설정은 점 예측과 같다
