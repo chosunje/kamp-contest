@@ -69,6 +69,15 @@ RUNS = {
     '15 조합 + 가중치 0.05':           dict(clone='weight', clone_w=0.05, cols=FEATURES['h7_full']),
     # 생산계획이 없는 쪽에도 같은 조합이 통하는지 (7번과 비교할 것)
     '16 no_plan 조합':                dict(clone='weight', clone_w=0.1, cols=FEATURES['h7_no_plan']),
+
+    # ── 가중치 격자 채우기 (2026-10-04) ──────────────────────────────────
+    # 10 to 13 번은 full 세트에서만, 14·15 번은 h7_full 세트에서 최종 후보 근처만 돌렸다.
+    # 정작 최종 모델이 h7_full 이라 그쪽 격자가 성겼다 → 두 세트를 같은 간격으로 맞춘다.
+    # 17 번(조합 + 제외)은 5월 폴드가 학습 부족으로 빠지므로 CORE 기준으로만 비교할 것
+    '17 조합 + 복제일 학습 제외':       dict(clone='drop', cols=FEATURES['h7_full']),
+    '18 조합 + 가중치 0.5':            dict(clone='weight', clone_w=0.5, cols=FEATURES['h7_full']),
+    '19 조합 + 가중치 0.7':            dict(clone='weight', clone_w=0.7, cols=FEATURES['h7_full']),
+    '20 가중치 0.05':                 dict(clone='weight', clone_w=0.05),
 }
 
 LGBM_BASE = dict(objective='l1', n_estimators=400, learning_rate=.05, num_leaves=31,
@@ -96,8 +105,6 @@ def make_model(name, seed=0, params=None):
         # 결측은 중앙값으로 메우고 (트리처럼 -999 를 넣으면 직선이 망가진다) 스케일을 맞춘다.
         return make_pipeline(SimpleImputer(strategy='median'), StandardScaler(),
                              Ridge(**{'alpha': 10.0, **p}))
-    raise ValueError(f'모르는 모델: {name}')
-
 
 def _fit_predict(name, seed, params, xtr, ytr, w, xva):
     """모델 1종을 학습해 검증 행 예측을 돌려준다 (결측 처리 방식이 모델마다 다르다)."""

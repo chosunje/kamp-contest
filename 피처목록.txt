@@ -149,12 +149,12 @@
                         FEATURES['no_plan']    (19개) = A + D
                1주 앞   FEATURES['h7_full']    (32개) = A7 + B7 + C + D7
                         FEATURES['h7_no_plan'] (12개) = A7 + D7
-               실험     FEATURES['h7_full_hol'](35개) = h7_full + H
-                        FEATURES['h7_win']     (35개) = h7_full + P
-               현재     FEATURES['h7_lag']     (34개) = h7_full + L
+               현재     FEATURES['h7_lag']     (34개) = h7_full + L군  ★ 최종 모델이 쓰는 세트
                경보     alarm_policy.ALARM_COLS(33개) = h7_lag - 실측 is_off
                         alarm_policy.NO_PLAN_COLS(12개) = h7_no_plan
-               실험     FEATURES['h7_plus']    (37개) = h7_full + P + L
+               실험     FEATURES['h7_full_hol'](35개) = h7_full + H군   (기각)
+                        FEATURES['h7_win']     (35개) = h7_full + P군   (기각)
+                        FEATURES['h7_plus']    (37개) = h7_full + P + L (L군만 남기는 편이 낫다)
   열 이름      A   hour, dow, is_weekend, is_holiday, after_off, off_run_prev,
                    days_since_off, shift(0 야간/1 점심/2 주간), is_transition, month
                B   is_off, day_prod_zero, prod, prod_cap(800 상한), prod_log, prod_zero,
@@ -208,6 +208,22 @@
     - 메타에 is_prod_missing(생산 기록 누락 의심일 15일), train_ok_strict 추가 (D18)
     - 1주 앞 세트 h7_* 추가 (D21). lag24 계열을 빼면 오히려 정확해진다 (MAE 9.57 → 8.77)
     - 15분 최대 타깃을 두 해석으로 생성 (D20)
+
+  ※ 2026-10-02 to 04 변경 (근거·측정값은 작업내역(조선제).txt [6-4] [6-6])
+    L군 채택  lag168_na, lag_best
+              lag168_na  1주 전 값이 결측인지 (휴무·가동중단 구간을 참조한 경우)
+              lag_best   lag168 → lag336 → 최근 4주 평균 순으로 "있는 값"을 쓰는 대체값
+              효과: 과거 전력 입력의 결측 비율 21.5% → 13.6%, CORE MAE 6.75 → 6.51
+              개선이 8월에 집중된다 (하계휴가로 lag168 결측이 276행)
+              → h7_lag 세트로 최종 모델에 반영
+    P군 기각  in_prod_window, hrs_since_prod_end, hrs_to_prod_start
+              생산계획 창(窓)을 피처로 준 것. D23(운영규칙 상한)과 같은 패턴으로 CORE 에서 무효
+    H군 기각  hol_op, hol_prod, hol_day_prod
+              "공휴일 & 생산 있음" 상호작용. 학습 구간 공휴일이 2일뿐이라 사례가 부족하다
+    N군 기각  휴지 기준값 4개 (기저부하 / 직전 휴지일 평균 / 직전 휴지일 같은 시각 /
+              lag168이 휴지 구간인지). CORE MAE 6.57 → 6.84 로 겨냥한 구간조차 악화
+    기타 기각 기온 축적 4개(6.63) · 생산 축적 2개(6.64)
+    ※ 기각한 것도 지우지 않고 남긴다. "시도했으나 무효"가 보고서의 근거가 된다
 
 --------------------------------------------------------------
  I. 실제 모델 결과로 본 피처 (2026-09-22)

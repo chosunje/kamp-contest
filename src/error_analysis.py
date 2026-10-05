@@ -1,16 +1,15 @@
 """최종 후보 모델의 예측오차 다발 조건 분석.
 
 기준 모델
-- 피처: h7_full (1주 앞에서도 사용 가능한 피처)
-- 학습: train_ok_strict
-- 복제일: sample_weight=0.3
+- 설정: model.py 의 FINAL_CFG 를 그대로 따른다 (2장 최종 모델과 동일)
+        h7_lag 피처 / train_ok_strict / 복제일 0.3 / 피크행 3배 / 얕은 나무 + 느린 학습
 - 모델: LightGBM, model.py의 SEEDS 예측값 평균(간단 앙상블)
 - 평가: model.py와 동일한 시간순 롤링 폴드 + 고유일 & train_ok
 
 주의
-- model_results.csv의 8번 수치(MAE 약 8.77)는 "시드별 지표의 평균"이다.
-- 이 스크립트는 행별 예측값을 시드 평균한 뒤 오차를 계산하므로 MAE가 약 8.52로 더 낮다.
-  즉 오류분석에는 실제 앙상블 예측을 사용하며, 둘은 같은 계산이 아니다.
+- model_results.csv 의 ★ 강화 최종 수치는 "시드별 지표의 평균"이다 (CORE 6.57).
+- 이 스크립트는 행별 예측값을 먼저 시드 평균한 뒤 오차를 계산하므로 값이 조금 더 낮다.
+  둘은 같은 계산이 아니다. 보고서 본문 숫자는 6.57 로 통일하기로 했다.
 
 출력
 - outputs/error_predictions.csv       행 단위 OOF 예측/오차
@@ -26,7 +25,7 @@ import numpy as np
 import pandas as pd
 
 from features import build, FEATURES
-from model import FOLDS, CORE_FOLDS, CORE, SEEDS, make_model
+from model import FOLDS, CORE_FOLDS, CORE, SEEDS, make_model, FINAL_CFG
 from preprocess import ROOT
 
 OUT_PRED = ROOT / 'outputs' / 'error_predictions.csv'
@@ -35,10 +34,15 @@ OUT_DATE = ROOT / 'outputs' / 'error_by_date.csv'
 OUT_TOP = ROOT / 'outputs' / 'error_top_cases.csv'
 OUT_SUMMARY = ROOT / 'outputs' / 'error_summary.txt'
 
-COLS = FEATURES['h7_full']
-MODEL = 'lgbm'
-TRAIN_FLAG = 'train_ok_strict'
-CLONE_W = 0.3
+# 2026-10-05: 최종 모델과 기준을 통일했다. 이 파일이 3장(오류분석)의 재료이므로
+# 2장이 설명하는 모델과 달라서는 안 된다. 설정은 model.py 의 FINAL_CFG 를 그대로 따른다.
+#   예전 설정(h7_full · 피크 가중치 없음) 기준 수치는 git 이력에 남아 있다
+COLS = FINAL_CFG['cols']
+MODEL = FINAL_CFG['model']
+TRAIN_FLAG = FINAL_CFG['train_flag']
+CLONE_W = FINAL_CFG['clone_w']
+PARAMS = FINAL_CFG['params']
+PEAK_W = FINAL_CFG['peak_w']
 
 
 def add_plan_window_features(X: pd.DataFrame) -> pd.DataFrame:
@@ -76,10 +80,12 @@ def rolling_predictions(X: pd.DataFrame) -> pd.DataFrame:
             f'시드 {len(SEEDS)}개 학습 시작',
             flush=True,
         )
+        # 가중치는 model.py 의 rolling_eval 과 같은 방식으로 쌓는다 (복제일 x 피크행)
         w = np.where(tr.is_clone, CLONE_W, 1.0)
+        w = w * np.where(tr.target >= tr.target.quantile(.95), PEAK_W, 1.0)
         preds = []
         for seed in SEEDS:
-            g = make_model(MODEL, seed).fit(tr[COLS], tr.target, sample_weight=w)
+            g = make_model(MODEL, seed, PARAMS).fit(tr[COLS], tr.target, sample_weight=w)
             preds.append(g.predict(va[COLS]))
         p = np.mean(preds, axis=0)
         print(f'      {fold}: OOF 예측 완료', flush=True)
@@ -246,7 +252,9 @@ def main():
         '==============================================================',
         ' 최종 후보 모델 예측오차 분석',
         '==============================================================',
-        f'모델: LightGBM / h7_full / {TRAIN_FLAG} / 복제일 가중치 {CLONE_W}',
+        f'모델: LightGBM / h7_lag({len(COLS)}개) / {TRAIN_FLAG} / 복제일 가중치 {CLONE_W} / '
+        f'피크행 가중치 {PEAK_W}  (model.py FINAL_CFG 와 동일 = 2장 최종 모델)',
+        f'      {PARAMS}',
         f'시드: {list(SEEDS)} 예측값 평균 / 평가: 고유일 & train_ok / 폴드: {FOLDS}',
         '',
         f'[전체 5 to 9월] n={overall["n"]:,}  MAE={overall["MAE"]:.2f}  RMSE={overall["RMSE"]:.2f}  '
