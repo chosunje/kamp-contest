@@ -27,6 +27,9 @@ STEPS = [
     ('1주 앞 예측 + 피크 경보', 'forecast.py'),
     ('테스트 예측 파일 생성', 'predict_test.py'),
     ('최종 성능 한 장 요약', 'report_final.py'),
+    ('보고서 1장 표·그림 데이터', 'report_ch1.py'),
+    ('보고서 2장 표·그림 데이터', 'report_ch2.py'),
+    ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
 ]
 
 
