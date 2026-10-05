@@ -4,9 +4,12 @@
   여러 날을 한 번에, 정해진 열 이름으로, 실적이 없어도 돌아가야 한다.
 
   ── 어떻게 동작하나 ────────────────────────────────────────────────────
-  예측 시점(cutoff)을 정하면 그 시각 이전 행만 학습에 쓴다. 대상 구간의 전력은
-  한 번도 보지 않는다. 임계값·환산계수도 전부 학습 구간에서만 뽑는다.
-  대상 구간 행에 전력이 비어 있어도(= 진짜 테스트 데이터) 그대로 돌아간다.
+  예측 시점(cutoff)을 정하면 그 시각 이전 행만 학습에 쓴다.
+  임계값·환산계수도 학습 구간에서 뽑는다. 현재 build의 실제 전력 유래 is_off와
+  구간 내 lag 입력은 운영 시점 기준 검증이 별도로 필요하다. 현재 출력은 사후 시연이다.
+  실제 테스트 파일이 없어 전력 없는 입력의 운영 성능·부분가동 여부는 확인하지 않았다.
+  시간 평균은 점 예측, 15분 최대는 별도 직접 학습 결과를 낸다(D10 분석 기준).
+  alarm은 시간 평균 P90의 임시 상대 경보이며 15분 최대 경보로 바꾼 결과가 아니다.
 
   ── 테스트 데이터가 오면 해야 할 일 ────────────────────────────────────
   1. 테스트 기간의 생산계획·기상 행을 dataset 에 이어 붙인다 (전력 열은 비워 둔다)
@@ -27,7 +30,7 @@ from features import build, FEATURES, peak_ratio
 from model import make_model, CLONE_W, FINAL_CFG, ALARM_CFG, MAX15_CFG
 from preprocess import ROOT
 
-ALARM_Q = .95    # 경보 임계값 (D10 확정 전 임시. 학습 구간 상위 5%)
+ALARM_Q = .95    # 시간 평균 학습 상위 5% 임시 경보 기준. 공식 임계는 미확정(D10)
 SEEDS = (0, 1, 2)
 
 
@@ -56,7 +59,7 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
         raise SystemExit(f'{start} to {end} 구간 행이 없다. 테스트 기간의 생산계획·기상 행을 '
                          f'먼저 dataset 에 넣고 preprocess.py 를 돌릴 것.')
 
-    cutoff = te['dt'].min()                       # 이 시각 이후 정보는 일절 쓰지 않는다
+    cutoff = te['dt'].min()                       # 이 시각 이전 행만 학습에 사용
     tr = X[(X['dt'] < cutoff) & X['train_ok_strict']]
     if len(tr) < 200:
         raise SystemExit(f'학습 행이 {len(tr)}개뿐이다. 예측 시점이 너무 이르다.')
@@ -71,7 +74,7 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS):
     out = te[['dt', '날짜', 'hour']].copy()
     out['pred'] = _fit_predict(point, tr, te, point['peak_w'], seeds)
     out['pred_hi'] = _fit_predict(alarm, tr, te, 1.0, seeds)
-    # 15분 최대(요금 기준). 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
+    # D20 A안 가정의 15분 최대. 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
     # (CORE MAE 7.32 vs 7.87). 환산값은 비교용으로 _환산 열에 남긴다
     out['pred_max15'] = _fit_predict(max15, tr, te, max15['peak_w'], seeds)
     out['pred_max15_환산'] = out.pred * out.hour.map(ratio)
@@ -87,7 +90,8 @@ def day_summary(out):
     ★ 일 최대는 점 예측이 아니라 분위 0.9 로 추정한다 ([7-5]).
       점 예측은 시각마다 "가운데 값" 을 맞히므로, 그 24개의 최대는 실제 일 최대보다
       체계적으로 낮다 (편향 +6.8). 분위 0.9 의 최대는 편향이 거의 0 이다 (-0.16).
-      시간별 정확도는 점 예측이, 일 최대는 분위 0.9 가 담당한다 — 용도가 다르다."""
+      시간별 정확도는 점 예측으로 평가하고 P90 최대는 경보 참고값으로 보존한다.
+      시간별 P90의 최대는 일 최대의 90% 상한을 보장하지 않는다."""
     g = out.groupby('날짜')
     d = pd.DataFrame({
         '일최대_추정': g.pred_hi.max().round(1),            # ★ 권장 추정값 (분위 0.9)
@@ -135,4 +139,5 @@ if __name__ == '__main__':
     else:
         print('\n실적 열이 비어 있다 = 진짜 테스트 구간. 정확도는 계산하지 않는다.')
     print(f'\n[경보] 임계 {thr:.0f} · 위험일 {int(D.경보.sum())}일 / {len(D)}일')
+    print('  시간 평균 학습 상위 5%의 임시 기준 · P90 포함률 미보정 · 공식 임계 미확정')
     print('→', path)

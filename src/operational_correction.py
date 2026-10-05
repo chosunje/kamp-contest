@@ -5,8 +5,8 @@
 알 수 있으므로, 그 이후의 예측값이 과도하게 높을 때 학습구간의 동일 조건 전력
 중앙값을 상한(cap)으로 적용한다.
 
-이 규칙은 최종 확정 모델이 아니라 검증 후보다. 5월은 크게 개선되지만 7월은 소폭
-악화되므로 운영 규칙 채택 여부는 홀드아웃/추가 데이터에서 다시 확인해야 한다.
+초기 h7_full 비교에서 CORE(7 to 9월)의 MAE·RMSE가 악화되어 이 규칙의
+일괄 적용은 채택하지 않았다. 코드와 산출물은 비교 실험 근거로 보존한다.
 
 선행:
     python src/error_analysis.py
@@ -111,10 +111,14 @@ def main():
             f'- {r.fold}: 변경 {int(r.changed)}행, MAE {r.MAE_base:.2f} → {r.MAE_corrected:.2f}, '
             f'RMSE {r.RMSE_base:.2f} → {r.RMSE_corrected:.2f}'
         )
+    decision = ('CORE MAE·RMSE가 함께 개선되어 추가 검토할 실험 후보로 남긴다.'
+                if c.MAE_delta < 0 and c.RMSE_delta <= 0
+                else 'CORE MAE·RMSE의 동시 개선이 없어 이 규칙의 일괄 적용을 채택하지 않는다.')
     lines += [
         '',
-        '판단: 전체 성능은 크게 개선되지만 개선 대부분이 5월 공휴일 부분가동에서 발생한다.',
-        '      7월 MAE는 소폭 악화되므로 최종 채택 전 독립 홀드아웃/추가 데이터 확인이 필요하다.',
+        f'판단: {decision}',
+        '      현재 결과의 전체 개선은 대부분 5월에 집중되어 있으며 CORE 기준을 우선한다.',
+        '출처: outputs/error_predictions.csv. 입력 모델·평가 조건은 outputs/error_summary.txt에 기록한다.',
     ]
     OUT_SUMMARY.write_text('\n'.join(lines), encoding='utf-8')
     print('\n'.join(lines))
