@@ -1,5 +1,6 @@
 """원본 로드 + 정제 + 복제일 판별. 모든 분석·학습은 이 모듈의 load()를 사용한다."""
 from pathlib import Path
+import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,12 +39,16 @@ def load(raw: pd.DataFrame | None = None) -> pd.DataFrame:
     # 휴무일: 하루 종일 기저부하만(일 최대 30 미만). 실제 경계는 26 vs 97로 넓게 벌어져 있어 임계 30은 안전
     # ※ 타깃에서 유도한 값이라 예측 시점에는 모른다. 휴무 49일은 전부 일 생산량 0이므로(포함관계 확인)
     #   생산계획을 받으면 알 수 있다는 가정(D09). 계획이 없는 시나리오에서는 쓰면 안 됨 → features.py B군으로 분류
-    df['is_off'] = df.groupby('날짜')['target'].transform('max') < 30
+    day_prod = df.groupby('날짜')['생산량'].transform('sum')
+    day_max = df.groupby('날짜')['target'].transform('max')
+    # 진짜 테스트 구간은 전력 열이 비어 있다. 그러면 day_max 가 NaN 이라 비교가 전부 False 가 되어
+    # 휴무일을 가동일로 보고 높게 예측한다(실측으로 MAE 0.8 → 19.0). 그 날만 D09 가정대로
+    # 생산계획으로 판정한다. 전력이 있는 날의 동작은 이전과 완전히 같다
+    df['is_off'] = np.where(day_max.isna(), day_prod == 0, day_max < 30)
     df['is_holiday'] = df['날짜'].astype(str).isin(
         {d.replace('-', '') for d in HOLIDAY})
     # 하루 종일 생산량 0인데 일 최대전력이 기저부하를 한참 넘는 날 = 생산 기록 누락 의심.
     # 7/13, 7/15(is_corrupt)는 시간 컬럼까지 손상돼 우연히 발견된 것이고, 같은 성격의 날이 더 있다.
-    day_prod = df.groupby('날짜')['생산량'].transform('sum')
     df['day_prod'] = day_prod
     df['is_prod_missing'] = (day_prod == 0) & ~df['is_off']
 

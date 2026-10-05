@@ -45,7 +45,7 @@ RUNS = {
     # 축 4. 모델 (과제 요건: 2종 이상 비교)
     '5 RandomForest':                 dict(model='rf'),
     # 축 5. 예측 시계 (같은 문서 [11]) — 1주 앞 세트는 full 에서 최근 lag 4개를 뺀 것이다.
-    #        빼면 오히려 좋아진다 ([9] 7번). lag24 계열이 요일 패턴을 흐리기 때문
+    #        빼면 오히려 좋아진다 ([4] 3번 · CORE 9.15 → 8.05). lag24 계열이 요일 패턴을 흐린다
     '6 1주 앞 (h7_full)':             dict(cols=FEATURES['h7_full']),
     '7 1주 앞 (h7_no_plan)':          dict(cols=FEATURES['h7_no_plan']),
 
