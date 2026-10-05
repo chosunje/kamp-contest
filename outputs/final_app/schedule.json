@@ -40,9 +40,7 @@
       "load": 6.0,
       "movable": true,
       "resource": "설비 A",
-      "depends_on": [
-        "A"
-      ],
+      "depends_on": ["A"],
       "recommended_start": 17,
       "changed": true
     },
@@ -479,15 +477,7 @@
     "budget": 50000,
     "complete": true,
     "improved": true,
-    "objective_before": [
-      199.114394958,
-      38.458961763,
-      0
-    ],
-    "objective_after": [
-      195.107266374,
-      27.519826433,
-      3
-    ]
+    "objective_before": [199.114394958, 38.458961763, 0],
+    "objective_after": [195.107266374, 27.519826433, 3]
   }
 }

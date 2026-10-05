@@ -165,7 +165,7 @@
       "target": "target_max15"
     }
   },
-  "source_fingerprint": "f69e722baa1b966fc51bfee1f73dc3ca71cca2d7f13e838780eda01ff76f49fc",
+  "source_fingerprint": "00b0bcaaba229c237a45bb30a86275be1943c492f15491afc9f6ef08029dc440",
   "policy_id": "D10_max15_p90_q95",
   "threshold_basis": "relative_q95",
   "threshold_value": 187.0,
