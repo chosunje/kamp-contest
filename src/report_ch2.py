@@ -24,7 +24,10 @@ def save(df, name, caption):
 
 M = pd.read_csv(ROOT / 'outputs' / 'model_results.csv')
 B = pd.read_csv(ROOT / 'outputs' / 'baseline_results.csv')
-P = pd.read_csv(ROOT / 'outputs' / 'error_predictions.csv', parse_dates=['dt'])
+P = pd.read_csv(ROOT / 'outputs' / 'error_predictions.csv', parse_dates=['dt'])  # 옛 후보(비교용)
+F = pd.read_csv(ROOT / 'outputs' / 'final' / 'predictions.csv', parse_dates=['dt'])  # 최종 설정
+X = pd.read_csv(ROOT / 'outputs' / 'model_results_fix.csv')          # 약점 공략 31개
+FINAL = '★ 강화 최종 (얕은나무+느린학습+피크가중)'
 
 
 def agg(fold):
@@ -38,6 +41,26 @@ def agg(fold):
 
 
 C, A = agg(CORE), agg('ALL')            # C = 7 to 9월(판단 기준), A = 5 to 9월
+
+
+def full_agg(fold):
+    """설정 이름을 자르지 않은 성적표 (★ 설정처럼 번호가 없는 것을 찾을 때)"""
+    a = M[M.fold == fold]
+    return a.groupby('run', sort=False).agg(MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'),
+                                            RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean'),
+                                            n=('n', 'first')).round(2)
+
+
+CF, AF = full_agg(CORE), full_agg('ALL')
+
+
+def fix_agg(fold=CORE):
+    a = X[X.fold == fold]
+    return a.groupby('run', sort=False).agg(MAE=('MAE', 'mean'), 흔들림=('MAE', 'std'),
+                                            RMSE=('RMSE', 'mean'), peakMAE=('peakMAE', 'mean')).round(2)
+
+
+XF = fix_agg()
 
 
 def row(no, label, cols=('MAE', '흔들림', 'RMSE', 'peakMAE')):
@@ -97,84 +120,144 @@ def main():
          '"그대로"와 정의상 같아야 하며 실제로 소수점까지 일치했다(구현 검증). 빈 칸은 미실험')
 
     # ── 표4. 조합 설정 ──────────────────────────────────────────────
-    t4 = pd.DataFrame([row('0', '기준 (full · 복제일 그대로)'),
+    # 설정 이름은 표 2-6 to 2-9 에서 똑같이 쓴다. 같은 설정이 표마다 다른 이름으로 나오면
+    # 독자가 연결하지 못한다. '비교 실험 기준'(표 2-2) 과 '1차 조합 (h7_full + 가중치 0.3)' 은 서로 다른 설정이다
+    t4 = pd.DataFrame([row('0', '비교 실험 기준 (full · 복제일 그대로)'),
                        row('6', 'h7_full 단독'),
                        row('2', '복제일 가중치 0.3 단독'),
-                       row('8', 'h7_full + 가중치 0.3  ← 최종 후보'),
+                       row('8', '1차 조합 (h7_full + 가중치 0.3)'),
                        row('14', 'h7_full + 가중치 0.1'),
                        row('3', '[참고] 누락일 포함 (학습 행 완화)')])
+    fin = {'설정': '★ 최종 (h7_lag + 피크가중 + 얕은나무·느린학습)'}
+    fin.update({f'{k} (7 to 9월)': CF.loc[FINAL, k] for k in ['MAE', '흔들림', 'RMSE', 'peakMAE']})
+    fin['MAE (5 to 9월)'] = AF.loc[FINAL, 'MAE']
+    t4 = pd.concat([t4, pd.DataFrame([fin])], ignore_index=True)
     save(t4, 't4_조합설정.csv',
          '표. 개별 요소와 조합의 성능 — 두 요소의 효과는 상쇄되지 않고 누적된다')
 
     # ── 표5. 최종 성능 대 목표선 ★ ──────────────────────────────────
-    def fin(sub):
-        e = sub.target - sub.pred
-        pk = sub.is_peak.astype(bool)
-        return [round(e.abs().mean(), 2), round(np.sqrt((e ** 2).mean()), 2),
-                round(e[pk].abs().mean(), 2)]
     rows = []
-    for lab, sub, src in [('7 to 9월 (판단 기준)', P[P.fold.isin(CORE_FOLDS)], core),
-                          ('5 to 9월 (전체)', P, all_)]:
+    for lab, g2, src, n in [('7 to 9월 (판단 기준)', CF, core, 1708),
+                            ('5 to 9월 (전체)', AF, all_, 2092)]:
         base = [round(src[m].min(), 2) for m in ['MAE', 'RMSE', 'peakMAE']]
-        mod = fin(sub)
-        rows.append({'기준': lab, '평가 행 수': len(sub),
+        mod = [g2.loc[FINAL, m] for m in ['MAE', 'RMSE', 'peakMAE']]
+        rows.append({'기준': lab, '평가 행 수': n,
                      '목표선 MAE': base[0], '모델 MAE': mod[0], 'MAE 개선율(%)': round((mod[0]/base[0]-1)*100),
                      '목표선 RMSE': base[1], '모델 RMSE': mod[1], 'RMSE 개선율(%)': round((mod[1]/base[1]-1)*100),
                      '목표선 피크MAE': base[2], '모델 피크MAE': mod[2], '피크MAE 개선율(%)': round((mod[2]/base[2]-1)*100)})
     save(pd.DataFrame(rows), 't5_최종성능_목표선대비.csv',
-         '표. 최종 모델과 목표선 ★ — 모델은 시드 3개 예측 평균. 목표선은 지표별 최저 단순규칙')
+         '표. 최종 모델과 목표선 ★ — 모델은 최종 설정(h7_lag·피크가중·얕은나무·느린학습)의 '
+         '시드 3개 평균. 목표선은 지표별 최저 단순규칙')
 
     # ── 그림2. 폴드별 성능 ──────────────────────────────────────────
     bb = b[~b.fold.isin(['ALL', CORE])]
+    mf = M[(M.run == FINAL) & ~M.fold.isin(['ALL', CORE])].groupby('fold')[['MAE', 'n']].mean()
     rows = []
-    for f, s in P.groupby('fold'):
-        e = s.target - s.pred
-        rows.append({'검증 월': f, '평가 행 수': len(s),
+    for f in sorted(mf.index):
+        rows.append({'검증 월': f, '평가 행 수': int(mf.loc[f, 'n']),
                      '목표선 MAE': round(bb[bb.fold == f].MAE.min(), 2),
-                     '최종 모델 MAE': round(e.abs().mean(), 2)})
+                     '최종 모델 MAE': round(mf.loc[f, 'MAE'], 2)})
     f2 = pd.DataFrame(rows).sort_values('검증 월').reset_index(drop=True)
     save(f2, 'f2_폴드별_성능.csv',
          '그림. 검증 월별 성능 — 세로 막대 2계열. 학습 데이터가 쌓일수록 오차가 줄어든다 '
          '(5월은 학습 4개월·복제일 편중)')
 
-    # ── 표6. 피크 관점의 성능 ───────────────────────────────────────
-    c = P[P.fold.isin(CORE_FOLDS)].copy()
-    e = c.target - c.pred
-    pk = c.is_peak.astype(bool)
-    d = c.groupby(c.dt.dt.date).apply(lambda s: pd.Series({
-        'y_max': s.target.max(), 'p_max': s.pred.max(),
-        'y_h': int(s.loc[s.target.idxmax(), 'hour']), 'p_h': int(s.loc[s.pred.idxmax(), 'hour']),
-        'in3': int(s.loc[s.target.idxmax(), 'hour']) in set(s.nlargest(3, 'pred').hour),
-        'keep': s.loc[s.pred.idxmax(), 'target'] / s.target.max(),
-        'off': bool(s.is_off.iloc[0])}), include_groups=False)
+    # ── 표6. 피크 관점의 성능 (최종 설정 예측 기준) ────────────────
+    c = F[F.fold.isin(CORE_FOLDS)].copy()
+    e = c.y - c.pred
+    pk = c.peak.astype(bool)
+    d = c.groupby('날짜').apply(lambda t: pd.Series({
+        'y_max': t.y.max(), 'p_max': t.pred.max(), 'hi_max': t.pred_hi.max(),
+        'base_max': t.pred_base.max(),
+        'y_h': int(t.loc[t.y.idxmax(), 'hour']), 'p_h': int(t.loc[t.pred.idxmax(), 'hour']),
+        'in3': int(t.loc[t.y.idxmax(), 'hour']) in set(t.nlargest(3, 'pred').hour),
+        'keep': t.loc[t.pred.idxmax(), 'y'] / t.y.max(),
+        'off': bool(t.is_off.iloc[0])}), include_groups=False)
     op = d[~d.off]
     t6 = pd.DataFrame([
-        ('시간 단위 MAE', round(e.abs().mean(), 2), '전체 평가 구간'),
-        ('피크 구간 MAE', round(e[pk].abs().mean(), 2), '학습 구간 상위 5%'),
+        ('시간 단위 MAE', CF.loc[FINAL, 'MAE'], '시드별 지표의 평균 (설정 비교표 기준)'),
+        ('피크 구간 MAE', CF.loc[FINAL, 'peakMAE'], '학습 구간 상위 5%'),
         ('피크 구간 평균 오차', round(e[pk].mean(), 2), '양수 = 과소예측'),
-        ('피크 구간 과소예측 비율(%)', round(pk.sum() and (e[pk] > 0).mean() * 100, 1), '-'),
-        ('일 최대 전력 MAE', round((op.y_max - op.p_max).abs().mean(), 2), f'가동일 {len(op)}일'),
-        ('일 최대 전력 평균 오차', round((op.y_max - op.p_max).mean(), 2), '양수 = 과소예측'),
+        ('피크 구간 과소예측 비율(%)', round((e[pk] > 0).mean() * 100, 1), '-'),
+        ('일 최대 MAE (점 예측)', round((op.y_max - op.p_max).abs().mean(), 2), f'가동일 {len(op)}일'),
+        ('일 최대 평균 오차 (점 예측)', round((op.y_max - op.p_max).mean(), 2), '양수 = 과소예측'),
+        ('일 최대 MAE (분위 0.9)', round((op.y_max - op.hi_max).abs().mean(), 2), '추정량 교체 후'),
+        ('일 최대 평균 오차 (분위 0.9)', round((op.y_max - op.hi_max).mean(), 2), '편향이 사실상 사라짐'),
         ('피크 시각 정확히 일치(%)', round((op.y_h == op.p_h).mean() * 100, 1), '-'),
         ('피크 시각 ±1시간 이내(%)', round(((op.y_h - op.p_h).abs() <= 1).mean() * 100, 1), '-'),
         ('예측 상위 3시간 안에 포함(%)', round(op.in3.mean() * 100, 1), '-'),
         ('예측 지목 시각의 실제 전력 수준(%)', round(op.keep.median() * 100, 1), '그날 실제 최대 대비, 중앙값'),
     ], columns=['지표', '값', '비고'])
     save(t6, 't6_피크관점_성능.csv',
-         '표. 피크 관점의 성능 (7 to 9월) — 평균 오차만으로는 보이지 않는 과소예측 경향')
+         '표. 피크 관점의 성능 (7 to 9월, 최종 설정) — 일 최대는 점 예측과 분위 0.9 를 나눠 본다')
+
+    # ── 표11. 하이퍼파라미터, 단독 변경 vs 조합 ★ ──────────────────
+    pick = ['17 [기준] 8번 조합', '29 나무 더 깊게', '30 나무 더 얕게', '31 천천히 오래',
+            '36 얕게+천천히', '32 얕게+피크3', '43 얕게+천천히+피크3+ff6', '45 +lag대응 (L군)']
+    lab = ['1차 조합 (h7_full + 가중치 0.3)', '깊은 나무 (리프 63 · 최소표본 10)',
+           '얕은 나무 (리프 15 · 최소표본 40)', '느린 학습 (학습률 0.02 · 트리 1,200)',
+           '얕은 나무 + 느린 학습', '얕은 나무 + 피크행 가중 3배',
+           '얕은 나무 + 느린 학습 + 피크가중 + 샘플링 0.6', '최종 (위 + L군 피처)']
+    t11 = XF.loc[pick].reset_index(drop=True)
+    t11.insert(0, '설정', lab)
+    t11['1차 조합 대비'] = (t11.MAE - t11.MAE.iloc[0]).round(2)
+    t11 = t11[['설정', 'MAE', '흔들림', '1차 조합 대비', 'RMSE', 'peakMAE']]
+    save(t11, 't11_파라미터_조합효과.csv',
+         '표. 파라미터는 단독으로는 흔들림에 묻히지만 조합에서는 분명하다 ★ '
+         '(단일 변경 표는 t10, 이 표와 함께 제시할 것)')
+
+    # ── 표12. 약점 공략 실험 요약 ─────────────────────────────────
+    pick2 = ['17 [기준] 8번 조합', '18 목적함수 l2', '19 분위 0.6', '20b 분위 0.9',
+             '21 피크행 가중 3배', '22 피크행 가중 6배', '23 Ridge 단독', '25 LGBM+Ridge 7:3',
+             '26 공휴일 피처', '27 공휴일 가중 5배']
+    lab2 = ['1차 조합 (h7_full + 가중치 0.3)', '목적함수 L2', '분위수 0.6', '분위수 0.9', '피크행 가중 3배', '피크행 가중 6배',
+            'Ridge 단독', 'LGBM+Ridge 7:3', '공휴일 상호작용 피처', '공휴일 행 가중 5배']
+    # 6배는 MAE 가 3배와 0.02 차이(흔들림 이내)라 "악화" 로 기각할 수 없다.
+    # peakMAE 는 오히려 6배가 낫다 → 피크를 우선할 때의 대안으로 남긴다 (model.py ALT_CFG)
+    judge = ['-', '기각', '보류 (peakMAE 는 우수)', '경보·일최대 전용으로 채택', '★ 채택',
+             '대안 보류 (피크 우선 시)', '기각', '기각', '기각', '기각']
+    t12 = XF.loc[pick2].reset_index(drop=True)
+    t12.insert(0, '설정', lab2)
+    t12['판정'] = judge
+    t12 = t12[['설정', 'MAE', '흔들림', 'RMSE', 'peakMAE', '판정']]
+    save(t12, 't12_약점공략_요약.csv',
+         '표. 피크 과소예측·공휴일 과대예측을 겨냥한 실험 ★ — 기각한 것도 함께 싣는다')
+
+    # ── 그림5. 일 최대 추정량 비교 ────────────────────────────────
+    f5 = pd.DataFrame([('점 예측', 10.93, 6.80), ('분위 0.75', 9.97, 3.88),
+                       ('분위 0.80', 9.39, 2.81), ('분위 0.85', 8.82, 1.57),
+                       ('분위 0.90', 8.61, -0.16), ('분위 0.95', 8.66, -1.90)],
+                      columns=['추정량', '일 최대 MAE', '평균 오차 (양수 = 과소예측)'])
+    save(f5, 'f5_일최대_추정량비교.csv',
+         '그림. 일 최대 추정량 비교 — 꺾은선 2계열 (출처 outputs/final/gain_summary.txt). '
+         '분위 0.9 에서 MAE 가 가장 낮고 편향이 거의 사라진다')
 
     # ── 표7. 모델 설정 (재현용) ─────────────────────────────────────
+    # 세 설정을 세로로 쌓으면 어느 모델의 값인지 표만 보고는 알 수 없다 → 열로 나란히 둔다
     t7 = pd.DataFrame([
-        ('LightGBM', '목적함수', 'L1 (MAE 직접 최소화)'),
-        ('LightGBM', '트리 수 / 학습률', '400 / 0.05'),
-        ('LightGBM', '리프 수 / 리프 최소 표본', '31 / 20'),
-        ('LightGBM', '피처·표본 샘플링', '0.8 / 0.8 (매 반복)'),
-        ('RandomForest', '트리 수 / 리프 최소 표본', '300 / 5'),
-        ('공통', '시드', f'{list(SEEDS)} (3회 반복 학습)'),
-        ('공통', '검증', '시간순 롤링 폴드 5 to 9월, 평가셋 고정'),
-        ('공통', '실험 수', f'설정 {len(RUNS)}개 × 시드 3개 × 폴드'),
-    ], columns=['모델', '항목', '값'])
-    save(t7, 't7_모델설정.csv', '표. 모델 설정 (재현용)')
+        ('피처 세트', 'full (36개)', 'full (36개, 동일)', 'h7_lag (34개)'),
+        ('목적함수', 'L1 (MAE 직접 최소화)', '제곱오차 고정 (선택 불가)', 'L1 (MAE 직접 최소화)'),
+        ('트리 수 / 학습률', '400 / 0.05', '300 / 해당 없음', '1,200 / 0.02  (느린 학습)'),
+        ('리프 수 / 리프 최소 표본', '31 / 20', '제한 없음 / 5', '15 / 40  (얕은 나무)'),
+        ('피처 / 표본 샘플링', '0.8 / 0.8', '부트스트랩 (자동)', '0.6 / 0.8'),
+        ('결측 처리', '분기 규칙으로 직접 학습', '-999 로 대체 후 학습', '분기 규칙으로 직접 학습'),
+        ('복제일 가중치', '1.0 (그대로)', '1.0 (그대로)', '0.3'),
+        ('피크 행 가중치', '1.0 (적용 안 함)', '1.0 (적용 안 함)', '3.0 (학습 구간 상위 5%)'),
+        ('일 최대 추정', '점 예측 그대로', '점 예측 그대로', '분위수 0.9 모델로 별도 산출'),
+    ], columns=['항목', '비교 실험 기준 (LightGBM)', '비교 대상 (RandomForest)', '★ 최종 모델 (LightGBM)'])
+    save(t7, 't7_모델설정.csv',
+         '표. 모델 설정 — 왼쪽 두 열은 모델 2종을 맞비교할 때 쓴 공통 출발점이고, 오른쪽 열은 '
+         '실험을 거쳐 확정한 최종 모델이다. 굵게 표시된 값이 출발점에서 바뀐 부분이다')
+
+    # 공통 설정은 세 열이 모두 같으므로 표에서 빼고 따로 둔다 (본문에 한 문단으로 써도 된다)
+    t7b = pd.DataFrame([
+        ('학습 행', f'train_ok_strict 5,788행 (가동중단·시간손상·생산기록 누락일 제외)'),
+        ('평가 행', '고유일 2,092행 (5 to 9월) · 판단 기준 1,708행 (7 to 9월)'),
+        ('검증', '시간순 롤링 폴드, 평가셋은 모든 설정에서 고정'),
+        ('시드', f'{list(SEEDS)} 3회 반복 학습, 시드 평균으로 보고'),
+        ('실험 규모', f'설정 비교 {len(RUNS)}개 + 약점 공략 {X.run.nunique()}개 (각 시드 3개 × 폴드)'),
+    ], columns=['항목', '값'])
+    save(t7b, 't7b_공통설정.csv', '표. 세 설정에 공통으로 적용한 조건 (본문 문단으로 풀어 써도 된다)')
 
     # ── 그림3·표8. 변수 중요도 (선행: python src/importance.py) ──────
     gp, sp = ROOT / 'outputs' / 'importance_gain.csv', ROOT / 'outputs' / 'importance_shap.csv'
@@ -233,6 +316,9 @@ def main():
     hp = ROOT / 'outputs' / 'hparam_results.csv'
     if hp.exists():
         H = pd.read_csv(hp)
+        # 원본 파일은 '기본값 (현재 설정)' 이지만, 보고서에서는 표 2-6 to 2-9 와 이름을 맞춘다
+        H.loc[H.설정 == '기본값 (현재 설정)', '설정'] = '1차 조합 (h7_full + 가중치 0.3)'
+        H = H.rename(columns={'기본값 대비': '1차 조합 대비'})
         save(H, 't10_하이퍼파라미터_민감도.csv',
              '표. 하이퍼파라미터 민감도 ★ — 최종 후보 설정에서 한 항목씩만 변경. '
              '목적함수를 제외하면 변동이 ±0.8 이내로 피처·가중치 효과보다 작다')

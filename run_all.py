@@ -3,7 +3,9 @@
 사용법:
     python run_all.py
 
-모델 비교(model.py)는 설정 17개 x 시드 3개를 돌아 약 3분 걸린다.
+모델 비교(model.py)는 설정 24개 x 시드 3개를 돌아 약 5분 걸린다.
+파이프라인에 넣지 않은 보조 스크립트: importance.py, hparam_check.py,
+operational_correction.py, quantile_analysis.py, reinforce.py (필요할 때 개별 실행)
 전처리·EDA만 다시 만들려면 STEPS 앞쪽 5개만 개별 실행하면 된다.
 """
 import runpy, sys
@@ -29,7 +31,6 @@ STEPS = [
     ('최종 성능 한 장 요약', 'report_final.py'),
     ('보고서 1장 표·그림 데이터', 'report_ch1.py'),
     ('보고서 2장 표·그림 데이터', 'report_ch2.py'),
-    ('1주 앞 예측 (마지막 예측 가능일)', 'forecast.py'),
 ]
 
 

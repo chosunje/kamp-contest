@@ -105,24 +105,6 @@ def make_model(name, seed=0, params=None):
         # 결측은 중앙값으로 메우고 (트리처럼 -999 를 넣으면 직선이 망가진다) 스케일을 맞춘다.
         return make_pipeline(SimpleImputer(strategy='median'), StandardScaler(),
                              Ridge(**{'alpha': 10.0, **p}))
-LGBM_PARAMS = dict(objective='l1', n_estimators=400, learning_rate=.05,
-                   num_leaves=31, min_data_in_leaf=20, feature_fraction=.8,
-                   bagging_fraction=.8, bagging_freq=1, verbose=-1)
-RF_PARAMS = dict(n_estimators=300, min_samples_leaf=5, n_jobs=-1)
-
-
-def make_model(name, seed=0, params=None):
-    """모델 1종을 만들어 돌려준다. 새 모델은 여기에 추가한다.
-
-    params 로 기본값을 덮어쓸 수 있다 (하이퍼파라미터 민감도 점검용, src/hparam_check.py).
-    아무것도 넘기지 않으면 아래 기본 설정 그대로다.
-    """
-    if name == 'lgbm':
-        return lgb.LGBMRegressor(**{**LGBM_PARAMS, **(params or {})}, seed=seed)
-    if name == 'rf':
-        return RandomForestRegressor(**{**RF_PARAMS, **(params or {})}, random_state=seed)
-    raise ValueError(f'모르는 모델: {name}')
-
 
 def _fit_predict(name, seed, params, xtr, ytr, w, xva):
     """모델 1종을 학습해 검증 행 예측을 돌려준다 (결측 처리 방식이 모델마다 다르다)."""
@@ -138,7 +120,6 @@ def _fit_predict(name, seed, params, xtr, ytr, w, xva):
 def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='keep',
                  clone_w=CLONE_W, seed=0, folds=None, params=None,
                  peak_w=1.0, peak_q=.95, hol_w=1.0, target='target', decay_days=None):
-                 clone_w=CLONE_W, seed=0, params=None):
     """시간순 롤링 폴드로 학습·예측한 결과를 행 단위로 돌려준다.
 
     cols       사용할 피처 목록 (FEATURES['full'] 등)
@@ -188,11 +169,6 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
         # idx = 검증 행의 원본 인덱스. 오차 분석에서 조건별로 되짚어 보려고 같이 들고 나간다
         out.append(pd.DataFrame({'fold': m, 'idx': va.index, 'y': va[target].values,
                                  'p': p, 'peak': va[target].values >= thr}))
-        if model in NEEDS_FILL:
-            xtr, xva = xtr.fillna(-999), xva.fillna(-999)
-        g = make_model(model, seed, params).fit(xtr, tr.target, sample_weight=w)
-        out.append(pd.DataFrame({'fold': m, 'y': va.target.values, 'p': g.predict(xva),
-                                 'peak': va.target.values >= thr}))
     return pd.concat(out, ignore_index=True)
 
 

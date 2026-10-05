@@ -1,4 +1,9 @@
-"""최종 후보 모델이 무엇을 보고 예측하는가 — 변수 중요도와 SHAP.
+"""변수 중요도 + 전체 구간 대비 피크 구간 SHAP 비교.
+
+  shap_analysis.py 와 역할을 나눈다 (둘 다 필요하다).
+    shap_analysis.py  전체 구간의 기여도 한 벌 (무엇으로 맞히는가)
+    importance.py     같은 값을 피크 구간과 나눠서 낸다 (피크에서 무엇이 달라지는가)
+  후자가 1장의 "피크 동인은 생산량이 아니라 기온" 과 모델을 잇는 근거가 된다.
 
 보고서에서 "피크는 생산량이 아니라 기온이 만든다"는 데이터 진단 결론을,
 모델도 같은 구조로 학습했는지 확인하는 근거로 쓴다.
@@ -14,18 +19,20 @@ SHAP 은 시드 0 하나로만 계산한다 (중요도 순위는 시드에 거�
 import numpy as np, pandas as pd
 
 from features import build, FEATURES
-from model import FOLDS, SEEDS, make_model
+from model import FOLDS, SEEDS, make_model, FINAL_CFG
 from preprocess import ROOT
 
 OUT_GAIN = ROOT / 'outputs' / 'importance_gain.csv'
 OUT_SHAP = ROOT / 'outputs' / 'importance_shap.csv'
 
-COLS = FEATURES['h7_full']
-TRAIN_FLAG, CLONE_W = 'train_ok_strict', 0.3
+# 설정은 model.py 의 FINAL_CFG 를 따른다 (shap_analysis.py · error_analysis.py 와 동일)
+COLS = FINAL_CFG['cols']
+TRAIN_FLAG, CLONE_W = FINAL_CFG['train_flag'], FINAL_CFG['clone_w']
+PARAMS, PEAK_W = FINAL_CFG['params'], FINAL_CFG['peak_w']
 
 # 피처를 어느 정보군에서 왔는지로 묶는다 (피처목록.txt A to D 군)
 GROUP = {}
-for c in FEATURES['h7_full']:
+for c in COLS:
     if c in ('prod', 'prod_cap', 'prod_log', 'prod_zero', 'day_prod', 'day_prod_hours',
              'day_prod_zero', 'prod_prev', 'prod_next', 'prod_diff', 'is_off',
              'after_off', 'off_run_prev', 'days_since_off'):
@@ -48,16 +55,16 @@ def main():
         tr = X[(X['dt'] < va['dt'].min()) & X[TRAIN_FLAG]]
         if len(va) == 0 or len(tr) < 200:
             continue
-        w = np.where(tr.is_clone, CLONE_W, 1.0)
         thr = tr.target.quantile(.95)              # 피크 정의는 model.py 와 동일 (학습 구간 상위 5%)
+        w = np.where(tr.is_clone, CLONE_W, 1.0) * np.where(tr.target >= thr, PEAK_W, 1.0)
 
         for seed in SEEDS:
-            g = make_model('lgbm', seed).fit(tr[COLS], tr.target, sample_weight=w)
+            g = make_model('lgbm', seed, PARAMS).fit(tr[COLS], tr.target, sample_weight=w)
             b = g.booster_.feature_importance(importance_type='gain')
             gains.append(pd.Series(b / b.sum(), index=COLS, name=f'{fold}_{seed}'))
 
         # SHAP: 시드 0 모델로 그 폴드의 평가 행을 설명한다
-        g = make_model('lgbm', 0).fit(tr[COLS], tr.target, sample_weight=w)
+        g = make_model('lgbm', 0, PARAMS).fit(tr[COLS], tr.target, sample_weight=w)
         import shap
         sv = shap.TreeExplainer(g).shap_values(va[COLS])
         s = pd.DataFrame(np.abs(sv), columns=COLS)

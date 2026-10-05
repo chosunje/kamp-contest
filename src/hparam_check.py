@@ -1,4 +1,11 @@
-"""하이퍼파라미터 민감도 점검.
+"""하이퍼파라미터 "단일 변경" 민감도 — model.py 의 FIX 29 to 43 번과 짝이다.
+
+  ★ 이 스크립트만 보고 "튜닝은 효과 없다" 고 결론내면 안 된다.
+    여기서는 한 번에 한 항목만 바꾼다 → 변동이 ±0.8 이내로 작게 보인다.
+    그러나 FIX 실험에서 얕은 나무(num_leaves 15 + min_data_in_leaf 40)와
+    느린 학습을 함께 적용하면 CORE MAE 7.15 → 6.79 로 분명히 내려간다.
+    즉 이 데이터에서 파라미터 효과는 단독이 아니라 조합에서 나온다.
+    두 결과를 같이 제시하는 것이 정직하다 (보고서에서도 그렇게 쓴다).
 
 본 연구는 하이퍼파라미터를 탐색하지 않고 기본값 수준으로 고정했다. 그 선택이
 타당했는지를 보이려면 "조정해도 크게 달라지지 않는다"를 측정해야 한다.
@@ -9,7 +16,7 @@
 import numpy as np, pandas as pd
 
 from features import build, FEATURES
-from model import CORE, CORE_FOLDS, SEEDS, LGBM_PARAMS, rolling_eval, score
+from model import CORE, CORE_FOLDS, SEEDS, LGBM_BASE, rolling_eval, score
 from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'hparam_results.csv'
@@ -59,7 +66,7 @@ def main():
     print(R.to_string(index=False))
     spread = R.MAE.max() - R.MAE.min()
     print(f'\n전체 변동 폭 {spread:.2f} (최저 {R.MAE.min():.2f} to 최고 {R.MAE.max():.2f})')
-    print(f'기본 설정 LightGBM: {LGBM_PARAMS}')
+    print(f'기본 설정 LightGBM: {LGBM_BASE}')
     print('→', OUT)
 
 
