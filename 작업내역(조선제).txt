@@ -28,6 +28,13 @@
    보고서를 쓰다가 "이 숫자 어디서 나왔지" 싶을 때 여기서 찾는다.
    ★ 는 내가 만든 것, (팀) 은 팀원이 만든 것이다.
 
+   [ 한 파일로 전부 돌리기 ]
+   Resource optimization AI.py  ★ 이 파일 하나만 돌리면 전처리부터 저감까지 끝난다
+                      전처리·피처·모델·피크·위험조건·경보·저감을 한 파일에 담았다.
+                      결과가 콘솔에 전부 찍히고 대시보드가 이번 실행 값으로 갱신된다.
+                      마지막에 src/ 기준 수치와 같은 값이 나왔는지 스스로 검증한다.
+                      약 4분. 아래 src/ 모듈들은 작업용 원본이고 이쪽은 실행본이다
+
    [ 과제 앞쪽 절반 — 전력사용량 예측 ]
    preprocess.py      원본 정제·플래그. 복제일 161일, 휴무일 49일, 기록손상·생산기록
                       누락 의심일을 여기서 판별한다. 모든 분석이 이 load() 를 쓴다   [3]
@@ -287,7 +294,12 @@
  [2] 실행 방법
 ==============================================================
 
- 전체    python run_all.py        15단계, 약 9분
+ 한 파일  python "Resource optimization AI.py"      ★ 가장 간단. 약 4분
+          전처리부터 저감까지 한 번에 돌고 결과가 콘솔에 전부 찍힌다.
+          끝나면 outputs/final/dashboard.html 이 이번 실행 값으로 갱신된다.
+          src/ 기준 수치와 같은 값이 나왔는지 끝에서 스스로 검증한다
+
+ 전체    python run_all.py        18단계, 약 12분 (그림·CSV 까지 전부)
  단계별  python src/<이름>.py     어느 폴더에서 실행해도 경로는 저장소 기준
 
  ── 파이프라인 18단계 (약 12분) ──
@@ -336,9 +348,14 @@
    outputs/final/00_dashboard.png   최종 모델 성능 한 장 (현재 상태)
    outputs/final/01_dashboard.png   이번 라운드에서 무엇이 바뀌었나 (00 대비)
    outputs/final/02_dashboard.png   ★ 최대피크 예측·위험조건·경보 (과제 뒤쪽 절반)
+   outputs/final/dashboard.html     ★ 전부를 한 화면에 — 브라우저로 연다 (대화형)
+                                    모델 성능 → 피크 예측 → 위험조건 → 경보 → 저감 →
+                                    한계. 막대·점에 마우스를 올리면 값이 뜬다
    outputs/perf/                    성능 체감 그림 6종 (팀원. h7_full 기준이라
                                     최종 설정과 다르다 — 00_dashboard 를 우선할 것)
    outputs/eda/                     EDA 그림 7종
+   outputs/final/dashboard.html     ★ 전부를 한 화면에. 브라우저로 열면 된다
+     PowerShell 에서  ii outputs\final\dashboard.html
 
  ── 내가 만든 스크립트 ──
    shap_analysis   어떤 피처가 예측을 만들었나. 피처군별 합계도 낸다
@@ -1732,7 +1749,9 @@
   README.md
     src 목록에 없는 파일 6개  shap_analysis / peak_driver / peak_alarm /
                               predict_test / report_final / report_gain
-    파이프라인 단계 수  10 → 15, 실행 시간 약 9분
+    파이프라인 단계 수  10 → 18, 실행 시간 약 12분
+    한 파일 실행본 추가  Resource optimization AI.py (약 4분, 자기검증 포함)
+    대시보드 추가        outputs/final/dashboard.html
     predict_test.py 출력 열 추가  pred_max15 (15분 최대 직접 학습),
                                   pred_max15_환산 (기존 계수 환산. 참고용)
 
@@ -1867,6 +1886,8 @@
   [v] 파이프라인 18단계 재현 확인 (exit=0)                        [2]
   [v] 팀원 질문 4건 답변 (D07·D10·src/models·부분가동일)         [10-3]
   [v] 제출물을 진짜 테스트 조건(전력 비움)에서 검증 + 휴무일 버그 수정  [8-8]
+  [v] 한 파일 실행본 (Resource optimization AI.py) + 자기검증
+  [v] 대시보드 한 화면 (outputs/final/dashboard.html)
 
 
 ==============================================================
@@ -1886,4 +1907,7 @@
              기동 분산의 "언제" 를 실측으로 특정. 02_dashboard 를 8패널로
  2026-10-05  [8-8] 제출물을 전력 비운 조건에서 검증. 휴무일 is_off 버그를 찾아 수정
              (그 날 MAE 18.95 → 0.92). 파이프라인 15 → 18단계
+ 2026-10-05  한 파일 실행본(Resource optimization AI.py)과 대시보드 한 화면
+             (outputs/final/dashboard.html) 추가. 실행본은 src/ 기준 수치와
+             같은 값이 나오는지 끝에서 스스로 검증한다
  이전 판은 git 이력에 남아 있다
