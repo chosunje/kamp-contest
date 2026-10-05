@@ -22,7 +22,18 @@ KAMP 과제 ⑤ (제조 생산데이터 기반 전력사용량 예측 및 최대
   두 벌이 되면 한쪽만 고쳐 숫자가 갈릴 수 있으므로, 마지막에 이 파일이 낸 값이
   문서에 적힌 값과 같은지 스스로 검증한다 (VERIFY). 어긋나면 경고를 띄운다.
 
-실행 시간 약 3분. 필요한 것: dataset/okm_augumented_2021.csv
+── 실행 ────────────────────────────────────────────────────────────────────
+  python "Resource optimization AI.py"              돌리고 결과만 본다 (약 4분)
+  python "Resource optimization AI.py" --serve      돌린 뒤 로컬 서버로 띄운다
+  python "Resource optimization AI.py" --serve-only 안 돌리고 띄우기만 (바로)
+  python "Resource optimization AI.py" --serve --port 8080   포트 지정
+
+  ★ 파일명에 공백이 있으므로 따옴표를 꼭 붙일 것.
+  서버로 띄우면 대시보드가 dashboard_data.json 을 직접 읽는다. 값을 바꿔 다시
+  돌린 뒤 브라우저 새로고침만 하면 된다. 그냥 파일을 열어도 되지만, 그때는
+  브라우저가 옆 파일 읽기를 막으므로 페이지에 박아 둔 값을 쓴다 (같은 값이다).
+
+필요한 것: dataset/okm_augumented_2021.csv
 """
 import json
 import sys
@@ -595,9 +606,66 @@ def verify(R):
     return bad == 0
 
 
+def serve(port=8000):
+    """대시보드를 로컬 서버로 띄운다.
+
+    왜 서버인가  파일을 그냥 열면(file://) 브라우저가 옆 파일 읽기를 막아서
+      대시보드가 "페이지에 박아 둔 값" 을 쓴다. 서버로 띄우면 dashboard_data.json
+      을 직접 읽으므로, 파이썬을 다시 돌린 뒤 새로고침만 하면 값이 바뀐다.
+      HTML 을 다시 쓸 필요가 없다.
+    주의  이 컴퓨터 안에서만 열린다 (127.0.0.1). 밖에서는 접속할 수 없다.
+    """
+    import http.server
+    import socketserver
+    import threading
+    import webbrowser
+
+    class H(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=str(OUT), **kw)
+
+        def end_headers(self):          # 값을 바꿔 돌렸는데 옛 화면이 보이면 안 된다
+            self.send_header('Cache-Control', 'no-store')
+            super().end_headers()
+
+        def guess_type(self, path):
+            """charset 을 명시한다. 안 붙이면 브라우저가 인코딩을 짐작하는데
+            한국어 윈도우에서는 cp949 로 읽어서 한글이 전부 깨진다."""
+            t = super().guess_type(path)
+            if t.split(';')[0] in ('text/html', 'application/json', 'text/css',
+                                   'text/javascript', 'application/javascript'):
+                return t.split(';')[0] + '; charset=utf-8'
+            return t
+
+        def log_message(self, *a):      # 요청 로그로 콘솔을 덮지 않는다
+            pass
+
+    for p in range(port, port + 10):
+        try:
+            httpd = socketserver.TCPServer(('127.0.0.1', p), H)
+            break
+        except OSError:
+            continue                    # 그 포트를 이미 누가 쓰고 있다
+    else:
+        print(f'  {port}-{port + 9} 포트가 전부 사용 중이다. 서버를 띄우지 못했다')
+        return
+    url = f'http://127.0.0.1:{p}/dashboard.html'
+    print(f'\n  로컬 서버 시작  {url}')
+    print('  브라우저가 자동으로 열린다. 끝내려면 이 창에서 Ctrl+C')
+    print('  값을 바꿔 다시 돌린 뒤에는 브라우저 새로고침만 하면 된다')
+    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print('\n  서버를 닫았다')
+    finally:
+        httpd.server_close()
+
+
 def write_dashboard(R):
     say('대시보드 재생성')
     OUT.mkdir(parents=True, exist_ok=True)
+    R['generated'] = time.strftime('%Y-%m-%d %H:%M')
     (OUT / 'dashboard_data.json').write_text(
         json.dumps(R, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'  → {OUT / "dashboard_data.json"}')
@@ -617,6 +685,17 @@ def write_dashboard(R):
 
 
 def main():
+    argv = sys.argv[1:]
+    port = 8000
+    if '--port' in argv:
+        port = int(argv[argv.index('--port') + 1])
+    # 분석 없이 띄우기만 — 이미 돌려 둔 값을 다시 보고 싶을 때 (바로 열린다)
+    if '--serve-only' in argv:
+        if not (OUT / 'dashboard.html').exists():
+            raise SystemExit('대시보드가 아직 없다. 먼저 한 번 돌릴 것 (--serve-only 없이)')
+        serve(port)
+        return 0
+
     if not RAW.exists():
         raise SystemExit(f'원자료가 없다: {RAW}')
     R = {}
@@ -663,6 +742,12 @@ def main():
     print('  콘솔 위쪽에 모든 수치가 있고, 같은 값이 대시보드에도 들어갔다')
     print(f'  대시보드  {TEMPLATE}')
     print('  해석과 근거는 작업내역(조선제).txt 의 [6] [7] [8] 에 있다')
+    if '--serve' in argv:
+        serve(port)
+    else:
+        print('\n  보는 방법 두 가지')
+        print(f'    그냥 열기    ii "{TEMPLATE}"')
+        print('    로컬 서버    python "Resource optimization AI.py" --serve-only')
     return 0 if ok else 1
 
 
