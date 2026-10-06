@@ -1,0 +1,638 @@
+<title>전력 피크 관제 콘솔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* 레이아웃: 좁은 고정 레일(섹션 이동) + 본문 한 단. 폰 폭에서는 레일이 가로 스트립이 된다 */
+:root{
+  --ink:#141618; --ink2:#4a5157; --mute:#7c858c;
+  --bg:#f4f5f3; --card:#fffffe; --line:#dfe2dd; --rail:#e9ebe6;
+  --a1:#2a78d6; --a2:#eb6834; --a3:#1baf7a;        /* 계열색 1·2·3 (색각 검증 완료) */
+  --warn:#c2410c; --ok:#15803d;
+  --fs:'IBM Plex Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif;
+  --fm:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ink:#eef0ee; --ink2:#b3bbc0; --mute:#848d94;
+  --bg:#14171a; --card:#1b1f23; --line:#2b3137; --rail:#1b1f23;
+  --a1:#5b9ff0; --a2:#f58552; --a3:#35c793; --warn:#fb923c; --ok:#4ade80;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ink:#eef0ee; --ink2:#b3bbc0; --mute:#848d94;
+  --bg:#14171a; --card:#1b1f23; --line:#2b3137; --rail:#1b1f23;
+  --a1:#5b9ff0; --a2:#f58552; --a3:#35c793; --warn:#fb923c; --ok:#4ade80;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--fs);line-height:1.6;margin:0}
+.wrap{display:grid;grid-template-columns:188px minmax(0,1fr);gap:34px;
+  max-width:1220px;margin:0 auto;padding-inline:20px;padding-block:28px 72px}
+h1{font-size:1.52rem;font-weight:700;margin:0 0 6px;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:1.12rem;font-weight:600;margin:0 0 4px;letter-spacing:-.005em;text-wrap:balance}
+h3{font-size:.93rem;font-weight:600;margin:0 0 3px}
+p{margin:0}
+.sub{color:var(--ink2);font-size:.875rem}
+.mute{color:var(--mute);font-size:.8rem}
+.num{font-family:var(--fm);font-variant-numeric:tabular-nums}
+
+/* 레일 */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;padding-block:4px}
+.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.rail a{display:flex;gap:9px;align-items:baseline;text-decoration:none;color:var(--ink2);
+  font-size:.845rem;padding:7px 10px;border-radius:7px;border-left:2px solid transparent}
+.rail a:hover{background:var(--rail);color:var(--ink)}
+.rail a.on{background:var(--rail);color:var(--ink);border-left-color:var(--a1);font-weight:600}
+.rail .k{font-family:var(--fm);font-size:.72rem;color:var(--mute)}
+.rail a.on .k{color:var(--a1)}
+
+main{display:flex;flex-direction:column;gap:46px;min-width:0}
+section{scroll-margin-top:18px}
+.head{margin-bottom:16px}
+
+/* 지표 타일 */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-block:18px 8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 14px 12px}
+.tile .v{font-family:var(--fm);font-size:1.62rem;font-weight:600;line-height:1.1;letter-spacing:-.02em}
+.tile .t{font-size:.81rem;color:var(--ink);margin-top:5px}
+.tile .d{font-size:.745rem;color:var(--mute);margin-top:2px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 17px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.stack{display:flex;flex-direction:column;gap:14px}
+
+/* 차트 */
+figure{margin:0}
+figcaption{font-size:.8rem;color:var(--mute);margin-top:9px;line-height:1.5}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{font-family:var(--fs);font-size:10.5px;fill:var(--ink2)}
+svg text.v{font-family:var(--fm);font-size:10.5px}
+svg text.s{font-size:9.5px;fill:var(--mute)}
+svg .gl{stroke:var(--line);stroke-width:1}
+svg .ax{stroke:var(--line);stroke-width:1.2}
+
+.legend{display:flex;flex-wrap:wrap;gap:13px;font-size:.79rem;color:var(--ink2);margin-top:9px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+table{border-collapse:collapse;width:100%;font-size:.825rem}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:500;font-size:.765rem;white-space:nowrap}
+td.n{font-family:var(--fm);font-variant-numeric:tabular-nums}
+tr.hl td{font-weight:600}
+.scroll{overflow-x:auto}
+
+.note{border-left:2px solid var(--a1);padding:2px 0 2px 12px;font-size:.855rem;color:var(--ink2)}
+.note.w{border-left-color:var(--warn)}
+.note b{color:var(--ink);font-weight:600}
+.pill{display:inline-block;font-size:.72rem;font-family:var(--fm);padding:1px 7px;border-radius:999px;
+  border:1px solid var(--line);color:var(--ink2)}
+.pill.ok{color:var(--ok);border-color:currentColor}
+.pill.no{color:var(--warn);border-color:currentColor}
+
+#tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .09s;z-index:9;
+  background:var(--ink);color:var(--bg);font-size:.76rem;font-family:var(--fm);
+  padding:5px 8px;border-radius:6px;white-space:pre;line-height:1.45}
+.hit{cursor:crosshair}
+:focus-visible{outline:2px solid var(--a1);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr;gap:18px}
+  .rail{position:static}
+  .rail ol{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:4px}
+  .rail a{white-space:nowrap;border-left:none;border-bottom:2px solid transparent;border-radius:6px}
+  .rail a.on{border-left:none;border-bottom-color:var(--a1)}
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  .grid2{grid-template-columns:1fr}
+}
+</style>
+
+<div class="wrap">
+<nav class="rail" aria-label="구간 이동">
+  <ol>
+    <li><a href="#s0" class="on"><span class="k">00</span>요약</a></li>
+    <li><a href="#s1"><span class="k">01</span>모델 성능</a></li>
+    <li><a href="#s2"><span class="k">02</span>최대피크 예측</a></li>
+    <li><a href="#s3"><span class="k">03</span>위험조건</a></li>
+    <li><a href="#s4"><span class="k">04</span>경보</a></li>
+    <li><a href="#s5"><span class="k">05</span>저감방안</a></li>
+    <li><a href="#s6"><span class="k">06</span>한계</a></li>
+  </ol>
+</nav>
+
+<main>
+<section id="s0">
+  <div class="head">
+    <h1>전력 피크 관제 콘솔</h1>
+    <p class="sub">KAMP 과제 ⑤ · 제조 생산데이터 기반 전력사용량 예측 및 최대피크 위험조건 분석</p>
+    <p class="mute" style="margin-top:6px">평가 구간 CORE 2021년 7–9월 · 고유일 <span data-v="models.3.n">1,708</span>행 · 시드 3개 평균 ·
+      예측은 모두 구간 외(시간순 롤링 폴드)</p>
+    <p class="mute" id="stamp" style="margin-top:3px"></p>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="v" style="color:var(--a1)"><span data-v="models.3.mae">6.57</span></div>
+      <div class="t">시간별 예측 MAE</div><div class="d">목표선 22.9 대비 <span data-v="@gain">−71%</span></div></div>
+    <div class="tile"><div class="v" style="color:var(--a3)"><span data-v="daymax_stat.hi_mae">8.64</span></div>
+      <div class="t">일 최대 예측 MAE</div><div class="d">편향 <span data-v="@hibias">−0.29</span> (거의 0)</div></div>
+    <div class="tile"><div class="v" style="color:var(--a3)"><span data-v="@recall">97.4%</span></div>
+      <div class="t">위험일 경보 재현율</div><div class="d">1주 전 · 정밀도 <span data-v="@prec">86.4%</span></div></div>
+    <div class="tile"><div class="v" style="color:var(--a2)"><span data-v="@gap">−8~16</span></div>
+      <div class="t">월 최대 저감 여지</div><div class="d">기동 분산 · 생산 손실 0</div></div>
+  </div>
+  <div class="card">
+    <h2>한 문단 요약</h2>
+    <p class="sub" style="margin-top:7px">시간별 전력은 목표선의 3분의 1 수준 오차로 예측한다.
+      일 최대와 경보는 점 예측이 아니라 <b>분위 0.9</b>로 내는데, 점 예측의 최대는 구조적으로 낮기 때문이다.
+      피크가 나는 날은 <b>생산이 필요조건이고 기온이 증폭 요인</b>이다 — 생산이 적으면 기온이 30도를 넘어도
+      피크가 나지 않는다. 저감은 생산을 옮기는 것으로는 안 되고,
+      <b>아침 8시와 점심 후 13시의 동시 기동을 분산</b>하는 쪽에만 근거가 선다.</p>
+  </div>
+</section>
+
+<section id="s1">
+  <div class="head"><h2>01 · 모델 성능</h2>
+    <p class="sub">규칙만으로 예측한 목표선을 모델이 얼마나 넘었나</p></div>
+  <div class="stack">
+    <div class="card"><figure>
+      <div id="c-models"></div>
+      <div class="legend"><span><i style="background:var(--a1)"></i>MAE</span>
+        <span><i style="background:var(--a2)"></i>피크 구간 MAE</span></div>
+      <figcaption>가로축은 오차이므로 짧을수록 좋다. 회색 선은 목표선(MAE 22.9).
+        경보 상한은 시간별 정확도를 내주고 피크 정확도를 가져가는 설정이라 용도가 다르다.</figcaption>
+    </figure></div>
+    <div class="grid2">
+      <div class="card"><figure>
+        <h3>월별 오차</h3><p class="mute" style="margin-bottom:9px">강화 최종 기준</p>
+        <div id="c-folds"></div>
+        <figcaption>5월은 학습이 4개월뿐이고 그 대부분이 복제일이라 따로 본다.
+          판단은 7–9월(CORE)로 한다.</figcaption>
+      </figure></div>
+      <div class="card">
+        <h3>최종 설정</h3><p class="mute" style="margin-bottom:10px">src/model.py · FINAL_CFG</p>
+        <table><tbody>
+          <tr><td>피처</td><td class="n">h7_lag (<span data-v="meta.n_cols">34</span>개)</td></tr>
+          <tr><td>학습 행</td><td class="n"><span data-v="@train">5,788</span></td></tr>
+          <tr><td>모델</td><td class="n">LightGBM · l1</td></tr>
+          <tr><td>나무</td><td class="n">leaves <span data-v="cfg.leaves">15</span> · min <span data-v="cfg.min_leaf">40</span></td></tr>
+          <tr><td>학습</td><td class="n">lr <span data-v="cfg.lr">0.02</span> · <span data-v="@trees">1,200</span></td></tr>
+          <tr><td>복제일</td><td class="n">가중치 <span data-v="cfg.clone_w">0.3</span></td></tr>
+          <tr><td>피크행</td><td class="n">가중치 <span data-v="cfg.peak_w">3</span>배</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="head"><h2>02 · 최대피크 예측</h2>
+    <p class="sub">그날 최대가 얼마일지 · 몇 시일지는 맞힐 수 있나</p></div>
+  <div class="grid2">
+    <div class="card"><figure>
+      <h3>일 최대 — 추정량을 바꿔야 한다</h3>
+      <p class="mute" style="margin-bottom:9px">가동일 <span data-v="daymax_stat.n">53</span>일</p>
+      <div id="c-daymax"></div>
+      <div class="legend"><span><i style="background:var(--a3)"></i>분위 0.9 (채택)</span>
+        <span><i style="background:var(--a2)"></i>점 예측의 최대</span></div>
+      <figcaption>대각선 아래 = 낮게 봄. 점 예측은 시각마다 가운데 값을 맞히므로
+        그 24개의 최대는 구조적으로 낮다 (편향 <span data-v="@ptbias">+6.81</span>). 분위 0.9는 <span data-v="@hibias">−0.29</span>로 편향이 사라진다.</figcaption>
+    </figure></div>
+    <div class="card"><figure>
+      <h3>"몇 시가 최대인가"는 맞힐 수 없다</h3>
+      <p class="mute" style="margin-bottom:9px">모델이 찍은 시각 적중률 <span data-v="@hit">20.4%</span></p>
+      <div id="c-hours"></div>
+      <div class="legend"><span><i style="background:var(--a2)"></i>실제</span>
+        <span><i style="background:var(--a1)"></i>모델이 찍은 시각</span></div>
+      <figcaption>실제는 오전에 몰려 있는데 모델은 오후로 퍼뜨린다.
+        "무조건 <span data-v="hour_rule.hour">8</span>시"라고 찍는 규칙(<span data-v="@rule">24.1%</span>)보다도 낮다. 경보는 시각이 아니라 날 단위로 낸다.</figcaption>
+    </figure></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>15분 최대 — 요금이 매겨지는 기준</h3>
+    <p class="sub" style="margin-top:6px">요금은 시간 평균이 아니라 15분 최대로 매겨진다.
+      타깃을 바꿔 직접 학습하는 쪽이 시각별 계수로 환산하는 것보다 낫다.</p>
+    <div class="scroll"><table style="margin-top:10px"><thead><tr>
+      <th>방법</th><th>시간별 MAE</th><th>경보 정밀도</th><th>경보 일치율</th></tr></thead><tbody>
+      <tr class="hl"><td>15분 최대 직접 학습</td><td class="n"><span data-v="max15.direct_mae">7.32</span></td><td class="n"><span data-v="@p15">93.2%</span></td><td class="n"><span data-v="@a15">94.4%</span></td></tr>
+      <tr><td>시간평균 × 시각별 계수</td><td class="n"><span data-v="max15.conv_mae">7.88</span></td><td class="n">—</td><td class="n">—</td></tr>
+      <tr><td>시간평균 기준 경보</td><td class="n"><span data-v="models.3.mae">6.57</span></td><td class="n"><span data-v="@prec">86.4%</span></td><td class="n"><span data-v="@acc">90.3%</span></td></tr>
+    </tbody></table></div>
+    <p class="note" style="margin-top:12px">피크 정의(D10)가 아직 미확정이라
+      <b>두 기준의 경보를 모두 산출한다.</b> 제출 파일에 <span class="num">alarm</span>(시간평균)과
+      <span class="num">alarm_max15</span>(15분 최대) 두 열이 들어간다.</p>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="head"><h2>03 · 최대피크 위험조건</h2>
+    <p class="sub">어떤 날이 위험한가 — 상관계수가 아니라 피크일 비율로</p></div>
+  <div class="grid2">
+    <div class="card"><figure>
+      <h3>생산이 먼저, 기온이 그 위에서 올린다</h3>
+      <p class="mute" style="margin-bottom:11px">칸 = 그 조건에서 피크일이었던 비율</p>
+      <div id="c-cross"></div>
+      <figcaption>생산이 하위 1/3이면 기온이 30도를 넘어도 피크일이 0%다 (23일 전부).
+        생산이 중위 이상일 때만 기온이 비율을 올린다.</figcaption>
+    </figure></div>
+    <div class="card"><figure>
+      <h3>조건 하나씩</h3>
+      <p class="mute" style="margin-bottom:11px">전체 <span data-v="risk.days">69</span>일 중 피크일 <span data-v="risk.peak">39</span>일 (<span data-v="@base">57%</span>)</p>
+      <div id="c-single"></div>
+      <figcaption>"기온 30도 초과"가 평균보다 낮은 것이 핵심이다 —
+        그 20일 중 12일이 저생산일(주말·휴무)이기 때문이다. 기온만 보면 거꾸로 읽게 된다.</figcaption>
+    </figure></div>
+  </div>
+  <p class="note" style="margin-top:14px">둘 중 하나가 "동인"인 게 아니라 <b>순서</b>가 있다.
+    생산은 필요조건(없으면 피크가 안 난다), 기온은 그 위에서 위험을 올리는 증폭 요인이다.
+    상관 한 숫자로는 이 순서가 안 보여서 계산 방법에 따라 결론이 뒤집혔던 것이다.</p>
+</section>
+
+<section id="s4">
+  <div class="head"><h2>04 · 피크 위험 경보</h2>
+    <p class="sub">언제 · 무엇을 기준으로 낼 것인가</p></div>
+  <div class="grid2">
+    <div class="card"><figure>
+      <h3>예측 시계와 기준</h3><p class="mute" style="margin-bottom:9px">일 단위 · 임계 상위 5%</p>
+      <div id="c-lead"></div>
+      <div class="legend"><span><i style="background:var(--a3)"></i>재현율</span>
+        <span><i style="background:var(--a1)"></i>정밀도</span></div>
+      <figcaption>1주 전과 하루 전이 거의 같다 → 미리 내도 성능을 잃지 않는다.
+        점 예측으로 경보를 내면 재현율이 74%로 떨어진다.</figcaption>
+    </figure></div>
+    <div class="card"><figure>
+      <h3>임계값을 고르는 곡선</h3><p class="mute" style="margin-bottom:9px">D-7 분위 0.9</p>
+      <div id="c-sweep"></div>
+      <div class="legend"><span><i style="background:var(--a3)"></i>재현율</span>
+        <span><i style="background:var(--a1)"></i>정밀도</span>
+        <span><i style="background:var(--a2)"></i>경보 발령률</span></div>
+      <figcaption>임계를 낮추면 재현율은 100%가 되지만 경보 발령률이 60%를 넘어 쓸모가 없다.
+        이틀에 한 번 경보를 내면 현장은 무시한다.</figcaption>
+    </figure></div>
+  </div>
+  <p class="note w" style="margin-top:14px">지금 임계는 "학습 구간 상위 5%"라는 잠정값이라
+    <b>경보 발령률이 <span data-v="@rate">61%</span></b>로 높다. 계약전력 같은 절대 기준으로 바꿔야 경보가 선택적이 된다.
+    값만 교체하면 되도록 스윕 표를 만들어 뒀다.</p>
+</section>
+
+<section id="s5">
+  <div class="head"><h2>05 · 피크전력 저감방안</h2>
+    <p class="sub">생산일정 또는 설비가동 시점 조정 — 세 축을 갈라서 본다</p></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="scroll"><table><thead><tr>
+      <th>축</th><th>수단</th><th>근거</th><th>판정</th></tr></thead><tbody>
+      <tr class="hl"><td>A</td><td style="text-align:left">설비가동 시점 조정 (기동 분산)</td>
+        <td style="text-align:left">실측. 모델 불필요</td><td><span class="pill ok">1순위</span></td></tr>
+      <tr><td>B</td><td style="text-align:left">생산일정 조정 (날짜 간)</td>
+        <td style="text-align:left">모델이 읽음 64.3% (p=0.044)</td><td><span class="pill">효과 작음</span></td></tr>
+      <tr><td>C</td><td style="text-align:left">하루 안의 생산 배분 조정</td>
+        <td style="text-align:left">모델이 그 축을 못 읽음 48.2%</td><td><span class="pill no">기각</span></td></tr>
+    </tbody></table></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><figure>
+      <h3>동시 기동이 언제 일어나는가</h3>
+      <p class="mute" style="margin-bottom:9px">전 시각 대비 전력 상승폭 · 가동일 평균</p>
+      <div id="c-ramp"></div>
+      <figcaption><span data-v="@r12">12시에 −55</span>로 세웠다가 <span data-v="@r13">13시에 +50</span>으로 되올라온다 —
+        점심에 설비를 세웠다가 한꺼번에 다시 켠다는 뜻이다. 아침 8시도 같은 모양이다.</figcaption>
+    </figure></div>
+    <div class="card"><figure>
+      <h3>얻을 수 있는 양</h3>
+      <p class="mute" style="margin-bottom:9px">월 최대를 만든 날 기준</p>
+      <div id="c-month"></div>
+      <div class="legend"><span><i style="background:var(--a1)"></i>그날 2위 시각 전력</span>
+        <span><i style="background:var(--a2)"></i>봉우리가 더 높은 폭</span></div>
+      <figcaption><span data-v="reduce.n_months">6</span>개월 중 <span data-v="reduce.k_months">4</span>개월의 월 최대가 기동 시각(8·13시)에 났다.
+        그 봉우리만 2위 수준으로 눌러도 월 최대가 그만큼 내려간다. 총량도 배분도 안 바꾼다.</figcaption>
+    </figure></div>
+  </div>
+  <p class="note" style="margin-top:14px">기본요금은 <b>그 달의 최대 한 번</b>으로 정해진다.
+    여러 날을 조금씩 낮춰도 최대일을 못 낮추면 절감은 0이다.
+    감소량은 상한이다 — 기동을 분산하면 그 부하가 옆 시각으로 옮겨 가므로 실제는 그보다 작다.</p>
+</section>
+
+<section id="s6">
+  <div class="head"><h2>06 · 알고 써야 할 한계</h2>
+    <p class="sub">보고서에 같이 적어야 하는 것들</p></div>
+  <div class="stack">
+    <div class="card"><h3>테스트 구간이 8일을 넘으면 뒤쪽이 나빠진다</h3>
+      <p class="sub" style="margin-top:6px">8일째부터 lag168(1주 전)이 테스트 구간 안을 가리켜 결측이 된다.
+        L군(lag_best)이 lag336으로 받아 줘서 돌아가기는 하지만 MAE가
+        <span class="num">6.24 → 8.30</span>(약 1.3배)이 된다.
+        7일 이하면 실적이 있을 때와 예측이 완전히 같다.</p></div>
+    <div class="card"><h3>검증 수치가 최대 0.13 낙관적일 수 있다</h3>
+      <p class="sub" style="margin-top:6px">휴무 여부(is_off)가 그날 전력에서 유도된 값이라,
+        검증 구간에서는 모델이 "오늘 쉬는 날"을 미리 아는 상태로 평가받는다.
+        빼고 재면 MAE <span class="num">6.57 → 6.70</span>. 흔들림 수준이라 결론은 바뀌지 않는다.</p></div>
+    <div class="card"><h3>공휴일 부분가동은 모델로 풀리지 않는다</h3>
+      <p class="sub" style="margin-top:6px">학습 구간에 그런 날이 3일뿐이다.
+        피처로 푸는 시도를 세 번 했고 전부 실패했다. 테스트 구간에 추석이 들어오면 그대로 나타난다.</p></div>
+    <div class="card"><h3>기동 분산은 "언제"까지만 특정한다</h3>
+      <p class="sub" style="margin-top:6px">전력이 공장 전체 한 값으로만 계량되어 있어
+        8시에 어떤 설비가 동시에 켜지는지 알 수 없다. 설비별 계량이 있으면 바로 설계할 수 있다 —
+        이것이 이 분석이 현장에 요청하는 사항이다.</p></div>
+  </div>
+</section>
+</main>
+</div>
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="D">{"n_train":5788,"meta":{"rows":6168,"days":257,"clone":161,"off":49,"train":5788,"span":"20210101 ~ 20210914","n_cols":34},"cfg":{"leaves":15,"min_leaf":40,"lr":0.02,"trees":1200,"clone_w":0.3,"peak_w":3.0,"alarm_q":0.95},"models":[{"name":"기본 설정","mae":9.15,"sd":0.53,"rmse":14.11,"peak":16.19,"n":1708},{"name":"1주 앞+가중","mae":7.15,"sd":0.12,"rmse":10.83,"peak":16.54,"n":1708},{"name":"RandomForest","mae":10.1,"sd":0.05,"rmse":18.9,"peak":21.35,"n":1708},{"name":"강화 최종","mae":6.57,"sd":0.19,"rmse":9.61,"peak":12.49,"n":1708},{"name":"강화 대안","mae":6.96,"sd":0.23,"rmse":10.2,"peak":11.05,"n":1708},{"name":"경보 상한","mae":14.74,"sd":0.01,"rmse":24.45,"peak":7.54,"n":1708}],"baseline":{"mae":22.9,"rmse":35.1,"peak":35.7},"folds":[{"fold":"2021-05","mae":20.27,"n":336},{"fold":"2021-06","mae":1.39,"n":48},{"fold":"2021-07","mae":7.09,"n":648},{"fold":"2021-08","mae":6.6,"n":725},{"fold":"2021-09","mae":5.48,"n":335}],"daymax":[{"d":20210701,"y":190.0,"hi":179.2,"pt":169.7},{"d":20210702,"y":179.0,"hi":179.6,"pt":170.3},{"d":20210703,"y":106.0,"hi":120.5,"pt":112.8},{"d":20210705,"y":173.0,"hi":191.1,"pt":180.9},{"d":20210706,"y":180.0,"hi":183.3,"pt":171.8},{"d":20210707,"y":181.0,"hi":178.7,"pt":173.2},{"d":20210708,"y":190.0,"hi":181.2,"pt":173.3},{"d":20210709,"y":181.0,"hi":180.3,"pt":171.5},{"d":20210710,"y":101.0,"hi":110.3,"pt":103.6},{"d":20210712,"y":191.0,"hi":188.2,"pt":182.1},{"d":20210714,"y":185.0,"hi":181.5,"pt":172.7},{"d":20210716,"y":188.0,"hi":178.2,"pt":170.7},{"d":20210717,"y":101.0,"hi":113.3,"pt":111.1},{"d":20210719,"y":199.0,"hi":189.6,"pt":180.5},{"d":20210720,"y":191.0,"hi":175.2,"pt":166.2},{"d":20210721,"y":204.0,"hi":180.8,"pt":177.1},{"d":20210722,"y":197.0,"hi":179.0,"pt":169.9},{"d":20210723,"y":191.0,"hi":181.7,"pt":174.4},{"d":20210724,"y":97.0,"hi":110.6,"pt":107.3},{"d":20210726,"y":198.0,"hi":190.0,"pt":182.2},{"d":20210727,"y":207.0,"hi":180.6,"pt":173.2},{"d":20210729,"y":207.0,"hi":177.8,"pt":166.8},{"d":20210809,"y":193.0,"hi":191.5,"pt":178.5},{"d":20210810,"y":185.0,"hi":190.5,"pt":177.7},{"d":20210811,"y":203.0,"hi":198.6,"pt":181.3},{"d":20210812,"y":188.0,"hi":199.2,"pt":184.4},{"d":20210813,"y":196.0,"hi":188.8,"pt":177.6},{"d":20210814,"y":107.0,"hi":104.2,"pt":90.6},{"d":20210816,"y":183.0,"hi":174.1,"pt":177.6},{"d":20210817,"y":169.0,"hi":182.3,"pt":176.7},{"d":20210818,"y":179.0,"hi":185.2,"pt":181.1},{"d":20210819,"y":177.0,"hi":187.8,"pt":182.8},{"d":20210820,"y":187.0,"hi":185.3,"pt":185.2},{"d":20210821,"y":104.0,"hi":108.7,"pt":97.7},{"d":20210823,"y":184.0,"hi":183.7,"pt":178.4},{"d":20210824,"y":187.0,"hi":186.3,"pt":182.4},{"d":20210825,"y":177.0,"hi":189.7,"pt":185.2},{"d":20210826,"y":195.0,"hi":195.4,"pt":189.4},{"d":20210827,"y":181.0,"hi":198.5,"pt":191.6},{"d":20210830,"y":172.0,"hi":183.1,"pt":179.1},{"d":20210831,"y":182.0,"hi":187.4,"pt":181.9},{"d":20210901,"y":185.0,"hi":187.2,"pt":184.3},{"d":20210902,"y":192.0,"hi":188.3,"pt":180.2},{"d":20210903,"y":187.0,"hi":181.6,"pt":170.7},{"d":20210904,"y":111.0,"hi":116.1,"pt":106.8},{"d":20210906,"y":176.0,"hi":181.1,"pt":178.4},{"d":20210907,"y":182.0,"hi":184.9,"pt":181.7},{"d":20210908,"y":171.0,"hi":185.7,"pt":181.6},{"d":20210909,"y":174.0,"hi":191.8,"pt":185.1},{"d":20210910,"y":184.0,"hi":185.4,"pt":180.1},{"d":20210911,"y":97.0,"hi":110.0,"pt":103.6},{"d":20210913,"y":185.0,"hi":178.4,"pt":174.9},{"d":20210914,"y":174.0,"hi":178.3,"pt":175.6}],"daymax_stat":{"hi_mae":8.64,"hi_bias":-0.29,"pt_mae":11.01,"pt_bias":6.81,"n":53},"hour_hit":20.4,"hours":[{"h":0,"act":0,"pred":0},{"h":1,"act":2,"pred":0},{"h":2,"act":4,"pred":3},{"h":3,"act":0,"pred":1},{"h":4,"act":1,"pred":3},{"h":5,"act":0,"pred":0},{"h":6,"act":2,"pred":2},{"h":7,"act":0,"pred":0},{"h":8,"act":13,"pred":5},{"h":9,"act":8,"pred":4},{"h":10,"act":3,"pred":3},{"h":11,"act":14,"pred":15},{"h":12,"act":0,"pred":0},{"h":13,"act":2,"pred":12},{"h":14,"act":5,"pred":6},{"h":15,"act":0,"pred":0},{"h":16,"act":0,"pred":0},{"h":17,"act":0,"pred":0},{"h":18,"act":0,"pred":0},{"h":19,"act":0,"pred":0},{"h":20,"act":0,"pred":0},{"h":21,"act":0,"pred":0},{"h":22,"act":0,"pred":0},{"h":23,"act":0,"pred":0}],"hour_rule":{"hour":8,"hit":24.1},"max15":{"direct_mae":7.32,"direct_sd":0.11,"conv_mae":7.87},"risk":{"days":69,"peak":39,"base":56.5},"cross":[{"기온대":"26도 이하","생산대":"하위 1/3","피크일비율(%)":0.0,"일수":4},{"기온대":"26도 이하","생산대":"중위 1/3","피크일비율(%)":66.67,"일수":9},{"기온대":"26도 이하","생산대":"상위 1/3","피크일비율(%)":71.43,"일수":7},{"기온대":"26-30도","생산대":"하위 1/3","피크일비율(%)":0.0,"일수":7},{"기온대":"26-30도","생산대":"중위 1/3","피크일비율(%)":83.33,"일수":12},{"기온대":"26-30도","생산대":"상위 1/3","피크일비율(%)":100.0,"일수":10},{"기온대":"30도 초과","생산대":"하위 1/3","피크일비율(%)":0.0,"일수":12},{"기온대":"30도 초과","생산대":"중위 1/3","피크일비율(%)":100.0,"일수":2},{"기온대":"30도 초과","생산대":"상위 1/3","피크일비율(%)":100.0,"일수":6}],"single":[{"조건":"일생산 상위 1/3","해당일":23,"피크일":21,"피크일 비율(%)":91.3,"기준대비(배)":1.62},{"조건":"생산시간 18시간 이상","해당일":34,"피크일":31,"피크일 비율(%)":91.2,"기준대비(배)":1.61},{"조건":"평일 (월-금)","해당일":49,"피크일":39,"피크일 비율(%)":79.6,"기준대비(배)":1.41},{"조건":"최고기온 26-30도","해당일":28,"피크일":21,"피크일 비율(%)":75.0,"기준대비(배)":1.33},{"조건":"최고기온 26도 이하","해당일":20,"피크일":11,"피크일 비율(%)":55.0,"기준대비(배)":0.97},{"조건":"공휴일","해당일":2,"피크일":1,"피크일 비율(%)":50.0,"기준대비(배)":0.88},{"조건":"최고기온 30도 초과","해당일":20,"피크일":8,"피크일 비율(%)":40.0,"기준대비(배)":0.71},{"조건":"주말","해당일":20,"피크일":0,"피크일 비율(%)":0.0,"기준대비(배)":0.0},{"조건":"일생산 하위 1/3","해당일":23,"피크일":0,"피크일 비율(%)":0.0,"기준대비(배)":0.0}],"lead":[{"임계전력":175.3,"정밀도(%)":86.4,"재현율(%)":97.4,"경보율(%)":61.1,"경보일":44,"실제위험일":39,"전체일":72,"일치율(%)":90.3,"설정":"D-7 · 분위 0.9"},{"임계전력":175.3,"정밀도(%)":86.7,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":39,"전체일":72,"일치율(%)":91.7,"설정":"D-1 · 분위 0.9"},{"임계전력":184.3,"정밀도(%)":93.2,"재현율(%)":97.6,"경보율(%)":61.1,"경보일":44,"실제위험일":42,"전체일":72,"일치율(%)":94.4,"설정":"D-7 · 15분 최대"},{"임계전력":175.3,"정밀도(%)":87.9,"재현율(%)":74.4,"경보율(%)":45.8,"경보일":33,"실제위험일":39,"전체일":72,"일치율(%)":80.6,"설정":"D-7 · 점 예측"},{"임계전력":175.3,"정밀도(%)":84.8,"재현율(%)":71.8,"경보율(%)":45.8,"경보일":33,"실제위험일":39,"전체일":72,"일치율(%)":77.8,"설정":"D-1 · 점 예측"}],"alarm_thr":175.3,"sweep":[{"임계전력":154.3,"정밀도(%)":100.0,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":45,"전체일":72,"일치율(%)":100.0,"임계분위":0.8},{"임계전력":161.0,"정밀도(%)":100.0,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":45,"전체일":72,"일치율(%)":100.0,"임계분위":0.85},{"임계전력":164.7,"정밀도(%)":100.0,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":45,"전체일":72,"일치율(%)":100.0,"임계분위":0.88},{"임계전력":167.6,"정밀도(%)":100.0,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":45,"전체일":72,"일치율(%)":100.0,"임계분위":0.9},{"임계전력":169.7,"정밀도(%)":97.8,"재현율(%)":100.0,"경보율(%)":62.5,"경보일":45,"실제위험일":44,"전체일":72,"일치율(%)":98.6,"임계분위":0.92},{"임계전력":175.3,"정밀도(%)":86.4,"재현율(%)":97.4,"경보율(%)":61.1,"경보일":44,"실제위험일":39,"전체일":72,"일치율(%)":90.3,"임계분위":0.95},{"임계전력":179.7,"정밀도(%)":79.5,"재현율(%)":88.6,"경보율(%)":54.2,"경보일":39,"실제위험일":35,"전체일":72,"일치율(%)":83.3,"임계분위":0.97},{"임계전력":183.0,"정밀도(%)":71.0,"재현율(%)":75.9,"경보율(%)":43.1,"경보일":31,"실제위험일":29,"전체일":72,"일치율(%)":77.8,"임계분위":0.98}],"ramp":[{"시각":1,"상승폭":25.9},{"시각":2,"상승폭":3.5},{"시각":3,"상승폭":-3.2},{"시각":4,"상승폭":1.1},{"시각":5,"상승폭":-11.7},{"시각":6,"상승폭":12.0},{"시각":7,"상승폭":11.4},{"시각":8,"상승폭":48.6},{"시각":9,"상승폭":-5.0},{"시각":10,"상승폭":-3.0},{"시각":11,"상승폭":7.6},{"시각":12,"상승폭":-54.6},{"시각":13,"상승폭":50.1},{"시각":14,"상승폭":3.4},{"시각":15,"상승폭":-13.1},{"시각":16,"상승폭":3.0},{"시각":17,"상승폭":-25.1},{"시각":18,"상승폭":20.8},{"시각":19,"상승폭":-12.1},{"시각":20,"상승폭":-19.0},{"시각":21,"상승폭":0.1},{"시각":22,"상승폭":-8.6},{"시각":23,"상승폭":-2.6}],"month":[{"월":1,"날짜":20210116,"월최대":177.0,"피크시각":8,"2위":171.0,"2위시각":14,"간격":6.0},{"월":3,"날짜":20210321,"월최대":190.0,"피크시각":13,"2위":190.0,"2위시각":8,"간격":0.0},{"월":5,"날짜":20210512,"월최대":178.0,"피크시각":13,"2위":169.0,"2위시각":8,"간격":9.0},{"월":7,"날짜":20210727,"월최대":207.0,"피크시각":11,"2위":195.0,"2위시각":14,"간격":12.0},{"월":8,"날짜":20210811,"월최대":203.0,"피크시각":8,"2위":187.0,"2위시각":14,"간격":16.0},{"월":9,"날짜":20210902,"월최대":192.0,"피크시각":14,"2위":184.0,"2위시각":9,"간격":8.0}],"level":[{"일수":15,"평균일생산":1159.87,"평균일최대":127.4},{"일수":14,"평균일생산":11822.86,"평균일최대":165.93},{"일수":14,"평균일생산":17178.07,"평균일최대":179.71},{"일수":14,"평균일생산":19704.86,"평균일최대":185.29},{"일수":14,"평균일생산":24228.36,"평균일최대":185.21}],"reduce":{"ramp8":48.6,"ramp12":-54.6,"ramp13":50.1,"gap_mean":8.5,"gap_max":16.0,"k_months":4,"n_months":6,"lo_prod":11823,"hi_prod":24228,"lo_max":166,"hi_max":185},"generated":"2026-10-05 22:05"}</script>
+<script>
+(function(){
+/* 값을 어디서 읽나
+   로컬 서버로 띄우면(python "Resource optimization AI.py" --serve)
+   옆에 있는 dashboard_data.json 을 읽는다 → 파이썬을 다시 돌리고 새로고침만 하면 된다.
+   파일을 그냥 더블클릭해 열면(file://) 브라우저가 옆 파일 읽기를 막으므로
+   이 페이지 안에 박아 둔 값을 쓴다. 둘 다 같은 값이다. */
+function render(D){
+const NS='http://www.w3.org/2000/svg';
+const tip=document.getElementById('tip');
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function mk(host,w,h){const s=el('svg',{viewBox:`0 0 ${w} ${h}`,role:'img'});
+  document.getElementById(host).appendChild(s);return s;}
+function txt(s,x,y,t,a){const e=el('text',Object.assign({x,y},a||{}));e.textContent=t;s.appendChild(e);return e;}
+function hover(node,label){
+  node.classList.add('hit');
+  node.addEventListener('pointerenter',e=>{tip.textContent=label;tip.style.opacity=1;});
+  node.addEventListener('pointermove',e=>{
+    const r=tip.getBoundingClientRect();
+    tip.style.left=Math.min(e.clientX+13,innerWidth-r.width-8)+'px';
+    tip.style.top=Math.max(e.clientY-r.height-9,6)+'px';});
+  node.addEventListener('pointerleave',()=>tip.style.opacity=0);
+}
+
+/* 01 모델 성능 — 가로 묶음 막대 */
+(function(){
+  const d=D.models, W=720, rh=40, H=d.length*rh+34, L=142, R=W-56;
+  const max=Math.max(D.baseline.mae, ...d.map(x=>x.peak))*1.04;
+  const s=mk('c-models',W,H), x=v=>L+(R-L)*v/max;
+  for(const t of [0,10,20,30]){
+    s.appendChild(el('line',{x1:x(t),x2:x(t),y1:16,y2:H-18,class:'gl'}));
+    txt(s,x(t),H-6,t,{class:'s','text-anchor':'middle'});}
+  const bx=x(D.baseline.mae);
+  s.appendChild(el('line',{x1:bx,x2:bx,y1:10,y2:H-18,stroke:css('--mute'),'stroke-width':1.3,'stroke-dasharray':'4 3'}));
+  txt(s,bx+5,13,'목표선 22.9',{class:'s'});
+  d.forEach((r,i)=>{
+    const y=26+i*rh;
+    txt(s,L-9,y+9,r.name,{'text-anchor':'end'});
+    [['mae','--a1',0],['peak','--a2',12]].forEach(([k,c,off])=>{
+      const b=el('rect',{x:L,y:y+off,width:Math.max(x(r[k])-L,1.5),height:10,rx:2,fill:css(c)});
+      hover(b,`${r.name}\n${k==='mae'?'MAE':'피크 MAE'} ${r[k]}`);s.appendChild(b);});
+    txt(s,x(r.mae)+5,y+9,r.mae.toFixed(2),{class:'v'});
+    txt(s,x(r.peak)+5,y+21,r.peak.toFixed(2),{class:'v s'});
+  });
+})();
+
+/* 01 폴드별 */
+(function(){
+  const d=D.folds, W=380, H=168, L=40, B=H-30, T=14;
+  const max=Math.max(...d.map(x=>x.mae))*1.14;
+  const s=mk('c-folds',W,H), bw=(W-L-14)/d.length;
+  const y=v=>B-(B-T)*v/max;
+  [0,10,20].forEach(t=>{s.appendChild(el('line',{x1:L,x2:W-10,y1:y(t),y2:y(t),class:'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});});
+  d.forEach((r,i)=>{
+    const cx=L+i*bw+bw/2, core=['2021-07','2021-08','2021-09'].includes(r.fold);
+    const b=el('rect',{x:cx-bw*.3,y:y(r.mae),width:bw*.6,height:B-y(r.mae),rx:2,
+      fill:core?css('--a1'):css('--mute')});
+    hover(b,`${r.fold}  MAE ${r.mae}\n평가 ${r.n}행`);s.appendChild(b);
+    txt(s,cx,y(r.mae)-4,r.mae,{class:'v',"text-anchor":'middle'});
+    txt(s,cx,B+13,r.fold.slice(5)+'월',{class:'s','text-anchor':'middle'});});
+  s.appendChild(el('line',{x1:L,x2:W-10,y1:B,y2:B,class:'ax'}));
+  txt(s,W-10,T-4,'진한 막대 = CORE',{class:'s','text-anchor':'end'});
+})();
+
+/* 02 일 최대 산점도 */
+(function(){
+  const d=D.daymax, W=380, H=330, L=40, R=W-12, T=12, B=H-32;
+  const all=d.flatMap(r=>[r.y,r.hi,r.pt]);
+  const lo=Math.min(...all)-8, hi=Math.max(...all)+8;
+  const s=mk('c-daymax',W,H);
+  const x=v=>L+(R-L)*(v-lo)/(hi-lo), y=v=>B-(B-T)*(v-lo)/(hi-lo);
+  for(let t=Math.ceil(lo/40)*40;t<hi;t+=40){
+    s.appendChild(el('line',{x1:L,x2:R,y1:y(t),y2:y(t),class:'gl'}));
+    s.appendChild(el('line',{x1:x(t),x2:x(t),y1:T,y2:B,class:'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});
+    txt(s,x(t),B+14,t,{class:'s','text-anchor':'middle'});}
+  s.appendChild(el('line',{x1:x(lo),y1:y(lo),x2:x(hi),y2:y(hi),stroke:css('--mute'),'stroke-width':1.2}));
+  d.forEach(r=>{
+    [['pt','--a2'],['hi','--a3']].forEach(([k,c])=>{
+      const p=el('circle',{cx:x(r.y),cy:y(r[k]),r:3.4,fill:css(c),'fill-opacity':.82});
+      hover(p,`${String(r.d).slice(4,6)}/${String(r.d).slice(6)}\n실제 ${r.y}\n${k==='hi'?'분위0.9':'점예측'} ${r[k]}`);
+      s.appendChild(p);});});
+  txt(s,(L+R)/2,H-4,'실제 일 최대',{class:'s','text-anchor':'middle'});
+  txt(s,L-6,T-2,'예측',{class:'s','text-anchor':'end'});
+})();
+
+/* 02 피크 시각 분포 */
+(function(){
+  const d=D.hours, W=380, H=330, L=34, R=W-10, T=16, B=H-34;
+  const max=Math.max(...d.flatMap(r=>[r.act,r.pred]))*1.12;
+  const s=mk('c-hours',W,H), bw=(R-L)/24, y=v=>B-(B-T)*v/max;
+  [0,5,10,15].forEach(t=>{s.appendChild(el('line',{x1:L,x2:R,y1:y(t),y2:y(t),class:'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});});
+  d.forEach(r=>{
+    const cx=L+r.h*bw;
+    [['act','--a2',0],['pred','--a1',bw*.42]].forEach(([k,c,off])=>{
+      if(!r[k])return;
+      const b=el('rect',{x:cx+off+bw*.06,y:y(r[k]),width:bw*.38,height:B-y(r[k]),rx:1.5,fill:css(c)});
+      hover(b,`${r.h}시\n${k==='act'?'실제':'모델'} ${r[k]}일`);s.appendChild(b);});
+    if(r.h%3===0)txt(s,cx+bw*.42,B+14,r.h,{class:'s','text-anchor':'middle'});});
+  s.appendChild(el('line',{x1:L,x2:R,y1:B,y2:B,class:'ax'}));
+  txt(s,(L+R)/2,H-4,'시각',{class:'s','text-anchor':'middle'});
+  txt(s,L-6,T-3,'일수',{class:'s','text-anchor':'end'});
+})();
+
+/* 03 위험조건 교차표 */
+(function(){
+  const rows=['26도 이하','26-30도','30도 초과'], cols=['하위 1/3','중위 1/3','상위 1/3'];
+  const W=380, H=252, L=74, T=26, cw=(W-L-8)/3, ch=(H-T-30)/3;
+  const s=mk('c-cross',W,H);
+  const get=(r,c)=>D.cross.find(x=>x['기온대']===r&&x['생산대']===c)||{};
+  rows.forEach((r,i)=>cols.forEach((c,j)=>{
+    const o=get(r,c), v=o['피크일비율(%)']??0, n=o['일수']??0;
+    const a=.07+.93*(v/100);
+    const g=el('g',{});
+    g.appendChild(el('rect',{x:L+j*cw+1,y:T+i*ch+1,width:cw-2,height:ch-2,rx:3,
+      fill:css('--a1'),'fill-opacity':a}));
+    const t1=el('text',{x:L+j*cw+cw/2,y:T+i*ch+ch/2-1,'text-anchor':'middle',
+      class:'v',fill:v>=80?'#fff':css('--ink')});
+    t1.setAttribute('font-size','15.5');t1.setAttribute('font-weight','600');
+    t1.textContent=Math.round(v)+'%';g.appendChild(t1);
+    const t2=el('text',{x:L+j*cw+cw/2,y:T+i*ch+ch/2+14,'text-anchor':'middle',class:'s',
+      fill:v>=80?'rgba(255,255,255,.86)':css('--ink2')});
+    t2.textContent=n+'일';g.appendChild(t2);
+    hover(g,`최고기온 ${r} · 생산 ${c}\n피크일 ${v.toFixed(1)}% (${n}일)`);
+    s.appendChild(g);}));
+  rows.forEach((r,i)=>txt(s,L-8,T+i*ch+ch/2+4,r,{'text-anchor':'end'}));
+  cols.forEach((c,j)=>txt(s,L+j*cw+cw/2,T-9,'생산 '+c,{class:'s','text-anchor':'middle'}));
+  txt(s,L-8,T-9,'최고기온',{class:'s','text-anchor':'end'});
+  txt(s,W-8,H-7,'진할수록 위험',{class:'s','text-anchor':'end'});
+})();
+
+/* 03 단일조건 */
+(function(){
+  const d=[...D.single].sort((a,b)=>a['피크일 비율(%)']-b['피크일 비율(%)']);
+  const W=380, rh=25, H=d.length*rh+26, L=136, R=W-44;
+  const s=mk('c-single',W,H), x=v=>L+(R-L)*v/100;
+  [0,50,100].forEach(t=>{s.appendChild(el('line',{x1:x(t),x2:x(t),y1:6,y2:H-20,class:'gl'}));
+    txt(s,x(t),H-7,t+'%',{class:'s','text-anchor':'middle'});});
+  const base=x(56.5);
+  s.appendChild(el('line',{x1:base,x2:base,y1:2,y2:H-20,stroke:css('--mute'),'stroke-width':1.2,'stroke-dasharray':'3 3'}));
+  d.forEach((r,i)=>{
+    const v=r['피크일 비율(%)'], y=14+i*rh, c=v===0?css('--a2'):(v>=90?css('--a3'):css('--a1'));
+    txt(s,L-8,y+4,r['조건'],{'text-anchor':'end'});
+    const b=el('rect',{x:L,y:y-5,width:Math.max(x(v)-L,2),height:11,rx:2,fill:c});
+    hover(b,`${r['조건']}\n피크일 ${v}% (${r['피크일']}/${r['해당일']}일)`);s.appendChild(b);
+    txt(s,x(v)+5,y+4,v+'%',{class:'v s'});});
+  txt(s,base+4,10,'평균 57%',{class:'s'});
+})();
+
+/* 04 리드타임 */
+(function(){
+  const d=D.lead, W=380, rh=34, H=d.length*rh+26, L=112, R=W-34;
+  const s=mk('c-lead',W,H), x=v=>L+(R-L)*v/100;
+  [0,50,100].forEach(t=>{s.appendChild(el('line',{x1:x(t),x2:x(t),y1:6,y2:H-20,class:'gl'}));
+    txt(s,x(t),H-7,t,{class:'s','text-anchor':'middle'});});
+  d.forEach((r,i)=>{
+    const y=16+i*rh;
+    txt(s,L-8,y+9,r['설정'],{'text-anchor':'end'});
+    [['재현율(%)','--a3',0],['정밀도(%)','--a1',10]].forEach(([k,c,off])=>{
+      const b=el('rect',{x:L,y:y+off-4,width:Math.max(x(r[k])-L,2),height:8.5,rx:2,fill:css(c)});
+      hover(b,`${r['설정']}\n${k.replace('(%)','')} ${r[k]}%`);s.appendChild(b);});
+    txt(s,x(r['재현율(%)'])+4,y+3,r['재현율(%)'],{class:'v s'});
+    txt(s,x(r['정밀도(%)'])+4,y+13,r['정밀도(%)'],{class:'v s'});});
+})();
+
+/* 04 임계 스윕 */
+(function(){
+  const d=D.sweep, W=380, H=252, L=36, R=W-12, T=14, B=H-34;
+  const xs=d.map(r=>r['임계전력']), lo=Math.min(...xs)-1.5, hi=Math.max(...xs)+1.5;
+  const s=mk('c-sweep',W,H), x=v=>L+(R-L)*(v-lo)/(hi-lo), y=v=>B-(B-T)*v/108;
+  [0,25,50,75,100].forEach(t=>{s.appendChild(el('line',{x1:L,x2:R,y1:y(t),y2:y(t),class:'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});});
+  const now=d.find(r=>r['임계분위']===0.95);
+  s.appendChild(el('line',{x1:x(now['임계전력']),x2:x(now['임계전력']),y1:T,y2:B,
+    stroke:css('--mute'),'stroke-width':1.2,'stroke-dasharray':'4 3'}));
+  txt(s,x(now['임계전력'])-5,T+10,'지금 임계 175',{class:'s','text-anchor':'end'});
+  [['재현율(%)','--a3'],['정밀도(%)','--a1'],['경보율(%)','--a2']].forEach(([k,c])=>{
+    const pts=d.map(r=>`${x(r['임계전력'])},${y(r[k])}`).join(' ');
+    s.appendChild(el('polyline',{points:pts,fill:'none',stroke:css(c),'stroke-width':2,
+      'stroke-linejoin':'round'}));
+    d.forEach(r=>{const p=el('circle',{cx:x(r['임계전력']),cy:y(r[k]),r:3.2,fill:css(c)});
+      hover(p,`임계 ${r['임계전력']} (상위 ${Math.round((1-r['임계분위'])*100)}%)\n${k.replace('(%)','')} ${r[k]}%`);
+      s.appendChild(p);});});
+  s.appendChild(el('line',{x1:L,x2:R,y1:B,y2:B,class:'ax'}));
+  [155,165,175,185].forEach(t=>txt(s,x(t),B+14,t,{class:'s','text-anchor':'middle'}));
+  txt(s,(L+R)/2,H-4,'경보 임계 전력',{class:'s','text-anchor':'middle'});
+})();
+
+/* 05 기동 램프 */
+(function(){
+  const d=D.ramp, W=380, H=240, L=34, R=W-10, T=16, B=H-30;
+  const max=Math.max(...d.map(r=>Math.abs(r['상승폭'])))*1.16;
+  const s=mk('c-ramp',W,H), bw=(R-L)/24, y=v=>T+(B-T)*(max-v)/(2*max);
+  [-40,0,40].forEach(t=>{s.appendChild(el('line',{x1:L,x2:R,y1:y(t),y2:y(t),class:t===0?'ax':'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});});
+  d.forEach(r=>{
+    const v=r['상승폭'], cx=L+r['시각']*bw, up=v>0;
+    const b=el('rect',{x:cx+bw*.14,y:up?y(v):y(0),width:bw*.72,
+      height:Math.max(Math.abs(y(v)-y(0)),1),rx:1.5,fill:css(up?'--a2':'--a1')});
+    hover(b,`${r['시각']}시  ${v>0?'+':''}${v}`);s.appendChild(b);
+    if(Math.abs(v)>=20){const t=txt(s,cx+bw*.5,up?y(v)-4:y(v)+11,(v>0?'+':'')+Math.round(v),
+      {class:'v','text-anchor':'middle'});t.setAttribute('font-weight','600');}
+    if(r['시각']%3===0)txt(s,cx+bw*.5,B+14,r['시각'],{class:'s','text-anchor':'middle'});});
+  txt(s,(L+R)/2,H-3,'시각',{class:'s','text-anchor':'middle'});
+})();
+
+/* 05 월 최대일 기회 */
+(function(){
+  const d=D.month, W=380, H=240, L=34, R=W-10, T=24, B=H-30;
+  const max=Math.max(...d.map(r=>r['월최대']))*1.2;
+  const s=mk('c-month',W,H), bw=(R-L)/d.length, y=v=>B-(B-T)*v/max;
+  [0,100,200].forEach(t=>{s.appendChild(el('line',{x1:L,x2:R,y1:y(t),y2:y(t),class:'gl'}));
+    txt(s,L-6,y(t)+3.5,t,{class:'s','text-anchor':'end'});});
+  d.forEach((r,i)=>{
+    const cx=L+i*bw+bw*.5, w=bw*.56;
+    const b1=el('rect',{x:cx-w/2,y:y(r['2위']),width:w,height:B-y(r['2위']),rx:2,fill:css('--a1')});
+    hover(b1,`${r['월']}월 ${r['날짜']}\n2위 ${r['2위']} (${r['2위시각']}시)`);s.appendChild(b1);
+    if(r['간격']>0){
+      const b2=el('rect',{x:cx-w/2,y:y(r['월최대']),width:w,height:y(r['2위'])-y(r['월최대']),rx:2,fill:css('--a2')});
+      hover(b2,`${r['월']}월 ${r['날짜']}\n월최대 ${r['월최대']} (${r['피크시각']}시)\n간격 ${r['간격']}`);
+      s.appendChild(b2);}
+    const t=txt(s,cx,y(r['월최대'])-5,r['간격']>=.5?'−'+r['간격']:'0',
+      {class:'v','text-anchor':'middle',fill:r['간격']>=.5?css('--a2'):css('--mute')});
+    t.setAttribute('font-weight','600');
+    txt(s,cx,y(r['2위'])/1+ (B-y(r['2위']))/2 ,r['피크시각']+'시',
+      {class:'s','text-anchor':'middle',fill:'rgba(255,255,255,.9)'});
+    txt(s,cx,B+14,r['월']+'월',{class:'s','text-anchor':'middle'});});
+  s.appendChild(el('line',{x1:L,x2:R,y1:B,y2:B,class:'ax'}));
+})();
+
+/* 본문 숫자를 데이터에서 채운다 — HTML 에 적힌 값은 기본값일 뿐이다.
+   데이터셋이나 설정을 바꿔 다시 돌리면 차트와 본문이 함께 바뀐다. */
+(function(){
+  const n1=v=>v.toFixed(1), sign=v=>(v>0?'+':'−')+Math.abs(v).toFixed(2);
+  const lead=k=>D.lead?D.lead.find(r=>r['설정']===k)||{}:{};
+  const d7=lead('D-7 · 분위 0.9'), m15=lead('D-7 · 15분 최대');
+  const R=D.reduce||{}, S=D.daymax_stat||{}, base=D.baseline||{};
+  const calc={
+    '@gain': D.models&&base.mae ? (100*(D.models[3].mae/base.mae-1)).toFixed(0)+'%' : null,
+    '@hibias': S.hi_bias!=null?sign(S.hi_bias):null,
+    '@ptbias': S.pt_bias!=null?sign(S.pt_bias):null,
+    '@recall': d7['재현율(%)']!=null?d7['재현율(%)']+'%':null,
+    '@prec': d7['정밀도(%)']!=null?d7['정밀도(%)']+'%':null,
+    '@acc': d7['일치율(%)']!=null?d7['일치율(%)']+'%':null,
+    '@rate': d7['경보율(%)']!=null?Math.round(d7['경보율(%)'])+'%':null,
+    '@p15': m15['정밀도(%)']!=null?m15['정밀도(%)']+'%':null,
+    '@a15': m15['일치율(%)']!=null?m15['일치율(%)']+'%':null,
+    '@gap': R.gap_mean!=null?'−'+R.gap_mean+'~'+Math.round(R.gap_max):null,
+    '@r12': R.ramp12!=null?'12시에 −'+Math.abs(Math.round(R.ramp12)):null,
+    '@r13': R.ramp13!=null?'13시에 +'+Math.round(R.ramp13):null,
+    '@train': D.meta&&D.meta.train!=null?D.meta.train.toLocaleString():null,
+    '@trees': D.cfg&&D.cfg.trees!=null?D.cfg.trees.toLocaleString():null,
+    '@hit': D.hour_hit!=null?D.hour_hit+'%':null,
+    '@rule': D.hour_rule?D.hour_rule.hit+'%':null,
+    '@base': D.risk?Math.round(D.risk.base)+'%':null,
+  };
+  const dig=(o,path)=>path.split('.').reduce((a,k)=>a&&a[k]!==undefined?a[k]:undefined,o);
+  document.querySelectorAll('[data-v]').forEach(e=>{
+    const k=e.getAttribute('data-v');
+    let v = k.startsWith('@') ? calc[k] : dig(D,k);
+    if(v===undefined||v===null)return;          // 값이 없으면 적힌 기본값을 그대로 둔다
+    // 데이터에 담긴 자릿수를 그대로 쓴다. 반올림하면 6.57 이 6.6 으로 뭉개진다
+    if(typeof v==='number')v=Number.isInteger(v)?v.toLocaleString():String(v);
+    e.textContent=v;});
+})();
+
+/* 레일 현재 위치 */
+const links=[...document.querySelectorAll('.rail a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{if(e.isIntersecting){
+    const i=secs.indexOf(e.target);
+    links.forEach((a,j)=>a.classList.toggle('on',j===i));}});},
+  {rootMargin:'-12% 0px -72% 0px'});
+secs.forEach(x=>x&&io.observe(x));
+
+/* 값이 언제 나온 것인지 밝힌다 — 옛 화면을 새 값으로 착각하지 않게 */
+const stamp=document.getElementById('stamp');
+if(stamp){
+  const t=D.generated?`${D.generated} 실행분`:'실행 시각 미기록';
+  stamp.textContent=`${t} · ${D.__src==='server'?'로컬 서버에서 읽음':'페이지에 담긴 값'}`;
+}
+}   /* render 끝 */
+
+(async function(){
+  let D={};
+  try{ D=JSON.parse(document.getElementById('D').textContent); }catch(e){}
+  try{
+    const r=await fetch('dashboard_data.json',{cache:'no-store'});
+    if(r.ok){ const j=await r.json(); if(j&&j.models){ D=j; D.__src='server'; } }
+  }catch(e){ /* file:// 이면 여기로 온다. 페이지에 담긴 값을 그대로 쓴다 */ }
+  render(D);
+})();
+})();
+</script>

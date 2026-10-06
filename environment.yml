@@ -3,13 +3,29 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - pandas
-  - numpy
-  - scikit-learn
-  - lightgbm
-  - shap
-  - matplotlib
-  - seaborn
+
+  # Pinned: these versions decide the metrics. If they drift, the VERIFY block
+  # in "Resource optimization AI.py" reports a mismatch. Values as of 2026-10-05.
+  - numpy=2.4.6
+  - pandas=3.0.6
+  - scikit-learn=1.9.1
+  - lightgbm=4.7.0
+
+  # Force OpenBLAS. With MKL, numpy matmul kills the interpreter silently
+  # (no traceback, process just exits). Check: python -c "import numpy as np; print(np.eye(2) @ np.eye(2))"
+  - libblas=*=*openblas
+
+  # Plotting / analysis only - not involved in the metrics.
+  - shap=0.51
+  - matplotlib=3.11
+  - seaborn=0.13
+  - openpyxl=3.1
   - jupyter
   - ipykernel
-  - openpyxl
+
+# conda env create -f environment.yml
+# conda activate kamp-contest
+#
+# NOTE: keep this file ASCII-only. On Windows, conda reads it with the system
+# codepage (cp949 on Korean Windows) and non-ASCII comments raise a decode error.
+# Korean usage notes live in the "Resource optimization AI" usage txt next to this file.
