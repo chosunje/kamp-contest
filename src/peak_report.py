@@ -225,9 +225,10 @@ def leadtime(X, P):
 def daily_max(P):
     """일 최대 추정 성능 (가동일만). 분위 0.9 와 점 예측을 함께."""
     d = P[~P.is_off.astype(bool)]
+    # 평가 시간 수로 더 거르지 않는다. 보고서 표 2-13(src/report_gain.py)이
+    # 휴무 여부만 보므로 여기서 한 번 더 거르면 가동일 수가 1일 어긋난다 (54 → 53)
     g = d.groupby('날짜').agg(실제=('y', 'max'), 분위=('d7_hi', 'max'), 점예측=('d7_pt', 'max'),
                              n=('hour', 'size'))
-    g = g[g.n >= 20]
     out = []
     for c in ('분위', '점예측'):
         e = g.실제 - g[c]
