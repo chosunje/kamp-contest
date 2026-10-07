@@ -344,3 +344,9 @@ pyrightconfig.json
 
 # 최종 시연용 학습 모델은 run_dashboard.py --rebuild로 재생성한다.
 /outputs/final_app/models/
+
+# 보고서·발표자료·제출 압축본은 저장소 밖에서 관리한다.
+*.docx
+*.pdf
+*.pptx
+*.zip

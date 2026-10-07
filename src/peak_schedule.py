@@ -250,7 +250,7 @@ def validate(X, tol_temp=1.5, tol_prod=.10, min_pairs=1):
           시간순 롤링 폴드를 그대로 쓴다 — fit() 으로 만든 모델을 쓰면 대상일보다 앞선
           날짜가 학습에 들어가 있어 낙관적으로 나온다
     한계  이것은 "배분이 다르면 피크가 다르다" 를 모델이 읽어 낸다는 간접 근거일 뿐
-          인과의 증거는 아니다. 공정 담당자 확인이 필요하다는 서술을 같이 써야 한다.
+          인과의 증거는 아니다. 실제 적용 전에 공정 담당자의 확인이 필요하다.
     """
     ps = [rolling_eval(X, seed=s, **ALARM_CFG).set_index('idx') for s in SEEDS]
     p = pd.concat([x.p for x in ps], axis=1).mean(axis=1)

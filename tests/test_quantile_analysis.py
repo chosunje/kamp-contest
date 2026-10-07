@@ -38,7 +38,7 @@ def synthetic_raw(days=42):
 
 
 def small_factory(name, seed=0, params=None):
-    # params 는 model.make_model 이 받는 설정 덮어쓰기다 (chosunje 병합으로 추가됨).
+    # params 는 model.make_model 이 받는 설정 덮어쓰기다.
     # 여기서는 그대로 넘기고 나무 수만 줄여 테스트를 빠르게 만든다.
     return ORIGINAL_FACTORY(name, seed, params).set_params(n_estimators=12, n_jobs=1)
 

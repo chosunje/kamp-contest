@@ -34,9 +34,8 @@ OUT_DATE = ROOT / 'outputs' / 'error_by_date.csv'
 OUT_TOP = ROOT / 'outputs' / 'error_top_cases.csv'
 OUT_SUMMARY = ROOT / 'outputs' / 'error_summary.txt'
 
-# 2026-10-05: 최종 모델과 기준을 통일했다. 이 파일이 3장(오류분석)의 재료이므로
+# 최종 모델과 같은 기준으로 분석한다. 이 파일이 3장(오류분석)의 재료이므로
 # 2장이 설명하는 모델과 달라서는 안 된다. 설정은 model.py 의 FINAL_CFG 를 그대로 따른다.
-#   예전 설정(h7_full · 피크 가중치 없음) 기준 수치는 git 이력에 남아 있다
 COLS = FINAL_CFG['cols']
 MODEL = FINAL_CFG['model']
 TRAIN_FLAG = FINAL_CFG['train_flag']
