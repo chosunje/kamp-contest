@@ -1,6 +1,6 @@
 """베이스라인 4종 — 모델이 넘어야 할 목표선. 규칙만으로 예측했을 때의 오차다.
 
-검증 규약은 model.py 를 그대로 따른다 (D12: 시간순 롤링 폴드, 고유일 평가).
+검증 규약은 model.py 를 그대로 따른다 (시간순 롤링 폴드, 고유일 평가).
 폴드 목록·지표 정의·학습 행 플래그를 전부 model.py 에서 가져다 쓴다.
 model.py 의 BASE 를 바꾸면 목표선도 같은 조건으로 따라 움직인다 — 정의가 갈리면 비교가 성립하지 않는다.
 
@@ -12,7 +12,7 @@ from model import FOLDS, CORE_FOLDS, CORE, score, BASE
 from preprocess import ROOT
 
 OUT = ROOT / 'outputs' / 'baseline_results.csv'
-TRAIN_FLAG = BASE['train_flag']   # model.py 와 같은 학습 행을 쓴다 (현재 train_ok_strict, D18)
+TRAIN_FLAG = BASE['train_flag']   # model.py 와 같은 학습 행을 쓴다 (train_ok_strict)
 GROUPS = {'고유일': lambda s: s[~s.is_clone], '복제일': lambda s: s[s.is_clone], '전체': lambda s: s}
 
 
@@ -35,7 +35,7 @@ def rolling_eval(X):
         tr = X[(X['dt'] < va['dt'].min()) & X[TRAIN_FLAG]]
         if len(va) == 0 or len(tr) < 200:
             continue
-        thr = tr.target.quantile(.95)   # 피크 임계: 학습 구간 상위 5% (D10 확정 전 임시)
+        thr = tr.target.quantile(.95)   # 피크 임계: 학습 구간 상위 5% (분석 기준)
         for k, p in predict(tr, va).items():
             out.append(pd.DataFrame({'model': k, 'fold': m, 'y': va.target.values, 'p': p,
                                      'peak': va.target.values >= thr, 'is_clone': va.is_clone.values}))

@@ -4,7 +4,7 @@
 실행: python src/viz_perf.py        →  outputs/perf/01 to 06 png, captions.txt
 
 평가 대상은 error_predictions.csv (최종 후보의 OOF 예측, 고유일 2,092행).
-판단 기준은 CORE(7 to 9월, 1,708행)를 우선한다 (D22).
+판단 기준은 CORE(7 to 9월, 1,708행)를 우선한다.
 """
 import numpy as np, pandas as pd
 import matplotlib
@@ -315,7 +315,7 @@ def main():
     fig_curves(P); fig_scatter(P); fig_timeline(P); fig_vs_baseline(P); fig_hour(P); fig_daily_peak(P)
     txt = ['성능 체감 그림 설명 (src/viz_perf.py 생성)',
            f'평가: 최종 후보(LightGBM / h7_full / train_ok_strict / 복제일 가중치 0.3) 의 OOF 예측',
-           f'기준: {CORE} 우선 (D22). 전체는 5 to 9월.', '']
+           f'기준: {CORE} 우선. 전체는 5 to 9월.', '']
     for n, c in CAPS:
         txt += [f'[{n}]', c, '']
     (OUT / 'captions.txt').write_text('\n'.join(txt), encoding='utf-8')

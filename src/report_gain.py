@@ -1,9 +1,9 @@
-"""이번 라운드에서 무엇이 좋아졌고 무엇을 포기했나 — 00_dashboard 대비 비교.
+"""강화 단계에서 무엇이 좋아졌고 무엇을 포기했나 — 00_dashboard 대비 비교.
 
   00_dashboard.png  그때까지의 최종 모델 성능 (현재 상태)
-  01_dashboard.png  이번 라운드의 변화 (이 파일)
+  01_dashboard.png  강화 단계의 변화 (이 파일)
 
-  이번 라운드의 주제는 "더 짜낼 수 있는가" 였다. 결과는 둘로 갈렸다.
+  강화 단계의 주제는 "더 짜낼 수 있는가" 였다. 결과는 둘로 갈렸다.
     · 시간별 정확도(MAE 6.51)는 한계에 도달했다 — 수단 6가지를 재고 전부 기각
     · 일 최대에는 큰 여유가 있었다 — 추정량을 바꿔 MAE -21%, 편향 제거
   그 과정을 한 장에 담는다. 기각한 것도 같이 싣는다. 보고서의 "시도와 한계" 가 된다.
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     gs = GridSpec(3, 2, figure=fig, hspace=.40, wspace=.22, top=.845, bottom=.045,
                   left=.058, right=.975)
 
-    fig.text(.012, .993, '이번 라운드에서 무엇이 바뀌었나 — 00_dashboard 대비',
+    fig.text(.012, .993, '강화 단계에서 무엇이 바뀌었나 — 00_dashboard 대비',
              fontsize=19, fontweight='bold', va='top')
     fig.text(.012, .967,
              '주제: "논리적으로 더 짜낼 수 있는가". 시간별 정확도는 한계에 도달했고, '
@@ -366,7 +366,7 @@ if __name__ == '__main__':
     plt.close(fig)
 
     txt = OUT / 'gain_summary.txt'
-    lines = ['이번 라운드 변화 요약 (src/report_gain.py 생성)',
+    lines = ['강화 단계 변화 요약 (src/report_gain.py 생성)',
              '비교 대상: 00_dashboard.png 시점의 모델', '',
              f'시간별 지표 (변화 없음)  MAE {hourly.MAE:.2f} / RMSE {hourly.RMSE:.2f} / peakMAE {hourly.peakMAE:.2f}',
              f'일 최대 MAE   {m0:.2f} → {m1:.2f}  ({(1 - m1 / m0) * 100:.0f}% 감소)',
@@ -383,6 +383,6 @@ if __name__ == '__main__':
                          f'  {"개선" if v1 < v0 else "악화"}')
     txt.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
-    print(f'\n[이번 라운드] 일 최대 MAE {m0:.2f} → {m1:.2f} · 편향 {b0:+.2f} → {b1:+.2f}')
+    print(f'\n[강화 단계] 일 최대 MAE {m0:.2f} → {m1:.2f} · 편향 {b0:+.2f} → {b1:+.2f}')
     print(f'  시간별 지표는 변화 없음 (MAE {hourly.MAE:.2f})')
     print(f'\n→ {path}\n→ {txt}\n→ {CACHE}')

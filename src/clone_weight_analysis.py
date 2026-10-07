@@ -110,7 +110,7 @@ def result_table(P):
 
 def summary_text(R, snapshot, elapsed):
     lines = [
-        'D07 복제일 가중치 0.1/0.3 재비교 (src/clone_weight_analysis.py 생성)',
+        '복제일 가중치 0.1/0.3 재비교 (src/clone_weight_analysis.py 생성)',
         f'실행 환경: Python {platform.python_version()}, numpy {np.__version__}, '
         f'pandas {pd.__version__}, lightgbm {lightgbm.__version__}',
         f'실행 시간: {elapsed:.1f}초',
@@ -124,10 +124,10 @@ def summary_text(R, snapshot, elapsed):
         'seed_metric_mean은 시드별 지표 평균, ensemble은 예측을 평균한 지표다.',
         '',
         '[2026-10-05 채택 결정]',
-        'D07: 현재 강화 L1 점 예측의 복제일 가중치 0.3을 유지한다.',
+        '결정: 강화 L1 점 예측의 복제일 가중치 0.3을 유지한다.',
         '시간 평균과 15분 최대 모두 CORE·ALL MAE/RMSE는 0.3이 낮다.',
         '0.1은 피크 MAE가 낮고 15분 최대의 일 최대 MAE도 낮아 피크 측면의 이점을 기록한다.',
-        'D10: 시간 평균은 점 예측, 15분 최대는 별도 피크 분석 타깃으로 사용한다.',
+        '경보 정책: 시간 평균은 점 예측, 15분 최대는 별도 피크 분석 타깃으로 사용한다.',
         '각 타깃의 학습 상위 5%는 임시 분석 기준이며 공식 경보 임계는 미확정이다.',
         '이 비교는 P90의 최적 가중치 재선정이나 기존 경보의 15분 최대 전환이 아니다.',
         '',

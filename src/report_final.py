@@ -1,13 +1,13 @@
 """최종 모델 한 장 요약 — "이 모델이 어느 정도인가" 를 눈으로 보는 용도.
 
   viz_perf.py 와 역할이 다르다.
-    viz_perf.py     팀원 작성. error_predictions.csv (h7_full, 피크 가중치 없음) 기준
+    viz_perf.py     error_predictions.csv (h7_full, 피크 가중치 없음) 기준
     report_final.py 내 최종 설정(FINAL_CFG)와 기존 시간 평균 경보 비교의 한 장 요약
-  현재 D10 기본 경보는 15분 최대 P90/Q95이며 peak_alarm_max15.py에서 별도로 검증한다.
+  기본 경보는 15분 최대 P90/Q95이며 peak_alarm_max15.py에서 별도로 검증한다.
 
   왜 따로 만들었나: viz_perf.py 가 쓰는 예측은 피크 가중치를 넣기 전 설정이라
   "일 최대를 평균 +9.62 낮게 본다" 로 되어 있다. 최종 설정에서는 이 부호가 뒤집혔다.
-  팀원 파일을 건드리지 않고 최종 설정의 그림을 따로 낸다.
+  viz_perf.py 를 건드리지 않고 최종 설정의 그림을 따로 낸다.
 
 실행: python src/report_final.py            (예측이 캐시에 있으면 재사용, 몇 초)
       python src/report_final.py --refresh  (예측부터 다시 계산, 약 3분)
@@ -208,7 +208,7 @@ def tiles(fig, items):
 
 if __name__ == '__main__':
     X, P = load_predictions('--refresh' in sys.argv)
-    C = P[P.fold.isin(CORE_FOLDS)].reset_index(drop=True)      # 판단 기준은 CORE (D22)
+    C = P[P.fold.isin(CORE_FOLDS)].reset_index(drop=True)      # 판단 기준은 CORE
 
     s = score(C.rename(columns={'pred': 'p'}))
     sb = score(C.rename(columns={'pred_base': 'p'}))
@@ -288,13 +288,13 @@ if __name__ == '__main__':
   MAE      {base_mae:.2f} → {s.MAE:.2f}
   일 최대 평균오차 {(C.groupby('날짜').apply(lambda t: t.y.max() - t.pred_base.max(), include_groups=False)).mean():+.2f} → {dm.mean():+.2f}
   (양수 = 일 최대를 낮게 본다는 뜻. 줄었지만 아직 0은 아니다)
-  ※ 팀원이 기록한 +9.62 는 피크 가중치 이전 설정의 값이다. 여기까지 내려왔다.
+  ※ 이전에 기록된 +9.62 는 피크 가중치 이전 설정의 값이다. 여기까지 내려왔다.
 
 [남은 약점]
   하루 중 어느 시각이 최대인지는 맞히지 못한다 (적중률 약 20%).
-  경보는 "몇 시"가 아니라 "그날 위험한가"로 내야 한다. 근거는 작업내역(조선제).txt [9-3]
+  경보는 "몇 시"가 아니라 "그날 위험한가"로 내야 한다. 근거는 보고서 제2장(피크 관점의 성능)
 
-[D10 현재 프로젝트 경보]
+[기본 피크 경보]
   15분 최대 직접 P90 >= 학습 15분 최대 Q95. 하루에 한 번이라도 경보이면 위험일.
   위 그림의 시간 평균 P90 비교와 구분하며 상세 검증은 peak_alarm_max15_summary.txt에 있다.
   계약전력 초과 판정과 별도이며 P90의 90% 포함률을 보장하지 않는다.

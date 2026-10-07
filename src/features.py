@@ -18,25 +18,25 @@ B = ['is_off', 'day_prod_zero', 'prod', 'prod_cap', 'prod_log', 'prod_zero', 'da
 C = ['cool', 'temp', 'humid', 'thi', 'wind', 'rain']
 D = ['lag24', 'lag168', 'lag336', 'lag_week_mean4', 'lag_prev_op',
      'prev_day_mean', 'prev_day_max', 'last_week_day_mean', 'last_week_day_max']
-# 1주 앞(168시간) 예측용 세트 (근거: 작업내역(조선제).txt [11]). 예측 시점이 대상일 7일 전이라 최근 값이 존재하지 않는다.
+# 1주 앞(168시간) 예측용 세트. 예측 시점이 대상일 7일 전이라 최근 값이 존재하지 않는다.
 #   빠지는 것  lag24, lag_prev_op, prev_day_mean, prev_day_max  (전날 실적 = 아직 미래)
 #   옮기는 것  after_off, off_run_prev, days_since_off  → 대상일 직전 휴무 정보라
 #              1주 앞 시점에는 생산계획이 있어야 알 수 있다 (달력군 → 계획군)
 A7 = ['hour', 'dow', 'is_weekend', 'is_holiday', 'shift', 'is_transition', 'month']
 B7 = ['after_off', 'off_run_prev', 'days_since_off'] + B
 D7 = ['lag168', 'lag336', 'lag_week_mean4', 'last_week_day_mean', 'last_week_day_max']
-# H. 공휴일 x 생산 상호작용 (근거: 작업내역(조선제).txt [16] 12-1)
+# H. 공휴일 x 생산 상호작용 (약점 공략 실험, 보고서 표 2-8)
 #   공휴일에 생산 기록이 있으면 부분 가동이라 생산량 대비 전력이 낮다.
 #   is_holiday 와 prod 를 따로 주면 나무가 "공휴일 & 생산량 많음" 조합을 스스로 찾아야 하는데
 #   학습 구간에 그런 날이 2일뿐이라 분기가 만들어지지 않는다 → 곱해서 직접 넣어 준다.
 H = ['hol_op', 'hol_prod', 'hol_day_prod']
-# P. 생산계획 창 — "오늘 생산이 언제 시작해서 언제 끝나는가" (D23 대안, 인수인계 [3] 2번)
-#   D23 은 "마지막 생산시간 이후 예측이 상한을 넘으면 잘라낸다"는 후처리 규칙이었는데
+# P. 생산계획 창 — "오늘 생산이 언제 시작해서 언제 끝나는가" (생산 종료 이후 상한 보정의 대안)
+#   상한 보정은 "마지막 생산시간 이후 예측이 상한을 넘으면 잘라낸다"는 후처리 규칙이었는데
 #   CORE 기준으로는 이득이 없었다(MAE 6.93 → 6.98). 규칙으로 덮어쓰는 대신
 #   같은 정보를 피처로 줘서 모델이 직접 배우게 한다.
 #   생산계획에서 나오는 값이라 예측 시점에 알 수 있다 → 누수 없음
 P = ['in_prod_window', 'hrs_since_prod_end', 'hrs_to_prod_start']
-# L. lag168 결측 대응 (인수인계 [3] 추가 후보)
+# L. lag168 결측 대응
 #   휴가 주는 lag168 이 통째로 결측이라 모델이 기댈 곳을 잃는다.
 #   "지금 lag168 이 없다"는 사실 자체와, 있으면 lag168 없으면 그다음 것을 쓰는 대체값을 준다.
 L = ['lag168_na', 'lag_best']
@@ -97,7 +97,7 @@ def build(df: pd.DataFrame | None = None) -> pd.DataFrame:
 
     # P. 생산계획 창 — 그날 생산이 도는 시간대의 앞뒤에서 몇 시간 떨어져 있는가
     #    "마지막 생산 3시간 뒤"와 "10시간 뒤"는 설비 잔열·대기부하가 다르므로
-    #    0/1 플래그가 아니라 경과 시간으로 준다 (팀원이 시험한 before/after 플래그의 연속판)
+    #    0/1 플래그가 아니라 경과 시간으로 준다 (before/after 플래그의 연속판)
     on = df['생산량'] > 0
     first = df['시간'].where(on).groupby(df['날짜']).transform('min')
     last = df['시간'].where(on).groupby(df['날짜']).transform('max')
@@ -137,7 +137,7 @@ def build(df: pd.DataFrame | None = None) -> pd.DataFrame:
 
     meta = df[['dt', '날짜', 'target', 'is_clone', 'is_off', 'is_stop', 'is_corrupt',
                'is_prod_missing', 'train_ok', 'train_ok_strict']].copy()
-    # 15분 컬럼의 의미가 확정되지 않아(작업내역(조선제).txt [10]) 두 해석의 피크 타깃을 모두 만들어 둔다.
+    # 15분 컬럼의 의미가 데이터에 명시되지 않아 두 해석의 피크 타깃을 모두 만들어 둔다.
     # A안: 네 값이 각 15분 구간의 평균 → 그 최대가 곧 요금 기준 최대수요전력
     meta['target_max15'] = df[Q15].max(axis=1)
     # B안: 네 값이 :15 :30 :45 :60 순간값 → 인접 두 값의 평균으로 구간 평균을 추정한 뒤 최대
@@ -151,7 +151,7 @@ def build(df: pd.DataFrame | None = None) -> pd.DataFrame:
 def peak_ratio(X: pd.DataFrame) -> pd.DataFrame:
     """시각별 (15분 최대 / 시간 평균) 비율. 시간 평균 예측값을 요금 기준 피크로 환산할 때 쓴다.
     A안 기준 7시 1.30, 17시 1.17, 5·12시 약 1.15로 교대 전환 시각에 크고 나머지는 약 1.05.
-    15분 컬럼 해석(작업내역(조선제).txt [10])이 미확정이라 두 안을 모두 낸다. 0시와 12시 외에는 차이가 0.05 미만이다."""
+    15분 컬럼의 해석이 데이터에 명시되지 않아 두 안을 모두 낸다. 0시와 12시 외에는 차이가 0.05 미만이다."""
     s = X[X.train_ok & ~X.is_off]
     base = s.target.replace(0, np.nan)
     return pd.DataFrame({'ratio_a': (s.target_max15 / base).groupby(s.hour).mean(),

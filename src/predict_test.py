@@ -1,4 +1,4 @@
-"""테스트 구간 예측 파일 생성 (작업내역(최치훈).txt 진행 순서 5번, 제출물 필수).
+"""테스트 구간 예측 파일 생성 (제출물).
 
   forecast.py 는 하루를 보기 좋게 찍어 주는 도구다. 제출물은 그것과 다르다.
   여러 날을 한 번에, 정해진 열 이름으로, 실적이 없어도 돌아가야 한다.
@@ -8,8 +8,8 @@
   임계값·환산계수도 학습 구간에서 뽑는다. 현재 build의 실제 전력 유래 is_off와
   구간 내 lag 입력은 운영 시점 기준 검증이 별도로 필요하다. 현재 출력은 사후 시연이다.
   실제 테스트 파일이 없어 전력 없는 입력의 운영 성능·부분가동 여부는 확인하지 않았다.
-  시간 평균은 점 예측, 15분 최대는 별도 직접 학습 결과를 낸다(D10 분석 기준).
-  D10 프로젝트 기본 alarm은 15분 최대 직접 P90 >= 학습 15분 최대 Q95다.
+  시간 평균은 점 예측, 15분 최대는 별도 직접 학습 결과를 낸다.
+  기본 alarm은 15분 최대 직접 P90 >= 학습 15분 최대 Q95다.
   신규 경보 입력은 cutoff 이후 전력과 당일 실제 is_off를 제외한다.
   계약전력 초과 판정과 구분한다. 기존 시간 평균 P90은 참고 열로 보존한다.
 
@@ -33,7 +33,7 @@ from model import make_model, CLONE_W, FINAL_CFG, ALARM_CFG, MAX15_CFG
 import alarm_policy as policy
 from preprocess import ROOT
 
-ALARM_Q = policy.ALARM_Q    # D10 프로젝트 기본: 학습 15분 최대 Q95
+ALARM_Q = policy.ALARM_Q    # 기본 경보 정책: 학습 15분 최대 Q95
 SEEDS = (0, 1, 2)
 
 
@@ -82,7 +82,7 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS, thr=None):
     out = te[['dt', '날짜', 'hour']].copy()
     out['pred'] = _fit_predict(point, tr, te, point['peak_w'], seeds)
     out['pred_hi'] = _fit_predict(alarm, tr, te, 1.0, seeds)
-    # D20 A안 가정의 15분 최대. 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
+    # 15분 최대(구간 평균 해석). 타깃을 바꿔 직접 학습하는 쪽이 계수 환산보다 낫다
     # (CORE MAE 7.32 vs 7.87). 환산값은 비교용으로 _환산 열에 남긴다
     out['pred_max15'] = _fit_predict(max15, tr, te, max15['peak_w'], seeds)
     out['pred_max15_hi'] = _fit_predict(max15_hi, tr, te, 1.0, seeds)
@@ -101,7 +101,7 @@ def predict_range(X, start, end, no_plan=False, seeds=SEEDS, thr=None):
 def day_summary(out):
     """일 단위 요약. 현장이 실제로 보는 것은 "그날 최대가 얼마고 언제인가" 이다.
 
-    ★ 일 최대는 점 예측이 아니라 분위 0.9 로 추정한다 ([7-5]).
+    ★ 일 최대는 점 예측이 아니라 분위 0.9 로 추정한다.
       점 예측은 시각마다 "가운데 값" 을 맞히므로, 그 24개의 최대는 실제 일 최대보다
       체계적으로 낮다 (편향 +6.8). 분위 0.9 의 최대는 편향이 거의 0 이다 (-0.16).
       시간별 정확도는 점 예측으로 평가하고 P90 최대는 경보 참고값으로 보존한다.
@@ -125,7 +125,7 @@ def day_summary(out):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='기간별 예측과 D10 15분 최대 경보 생성')
+    parser = ArgumentParser(description='기간별 예측과 15분 최대 경보 생성')
     parser.add_argument('start', type=int, nargs='?')
     parser.add_argument('end', type=int, nargs='?')
     parser.add_argument('--no-plan', action='store_true')

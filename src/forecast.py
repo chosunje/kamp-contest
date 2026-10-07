@@ -2,14 +2,14 @@
 
   예측 시점 = 대상일의 7일 전 0시. 그 시점까지의 전력 실적만 학습에 쓴다.
   대상일의 생산계획·기상예보는 주어진다고 가정한다 (기본 h7_lag).
-  pred_max15는 시간 평균 × 시각별 계수의 참고 환산값이다 (15분 컬럼 A안).
+  pred_max15는 시간 평균 × 시각별 계수의 참고 환산값이다 (15분 컬럼 = 구간 평균 해석).
   경보용 pred_hi_max15는 별도의 15분 최대 P90 직접 학습 결과다.
 
-  ★ 경보 (작업내역(최치훈).txt [15] 1순위)
+  ★ 경보
     점 예측(pred)은 피크를 낮게 본다. 이것을 그대로 임계값에 대면 경보가 늦는다.
     15분 최대 분위 0.9 모델을 따로 학습해 경보 후보(pred_hi_max15)를 같이 낸다.
     위험 시각은 pred_hi_max15와 15분 최대 임계값의 비교로 판단한다.
-    D10 프로젝트 기본 alarm은 15분 최대 P90 >= 학습 15분 최대 Q95다.
+    기본 alarm은 15분 최대 P90 >= 학습 15분 최대 Q95다.
     경보 입력은 당일 실제 is_off와 예측 시점 이후 전력을 제외한다.
     P90은 보정된 90% 상한이나 초과확률이 아니다. 계약전력 초과 판정과 구분한다.
     기존 시간 평균 점 예측의 피처에는 실제 is_off가 남아 있어 사후 시연으로 해석한다.
@@ -26,7 +26,7 @@ import alarm_policy as policy
 from preprocess import ROOT
 
 HORIZON = 7      # 일. 대상일 7일 전에 예측한다
-ALARM_Q = policy.ALARM_Q    # D10 프로젝트 기본: 학습 15분 최대의 Q95
+ALARM_Q = policy.ALARM_Q    # 기본 경보 정책: 학습 15분 최대의 Q95
 
 
 def _weights(tr, clone, peak_w):
@@ -45,7 +45,7 @@ def forecast(X, target_date, cols=None, model='lgbm', train_flag='train_ok_stric
     돌려주는 열
       pred          시간 평균 전력의 점 예측
       pred_hi       기존 시간 평균 P90 참고값 (포함률 미보정)
-      pred_max15    pred를 시각별 계수로 환산한 15분 최대 참고값 (D20 A안 가정)
+      pred_max15    pred를 시각별 계수로 환산한 15분 최대 참고값 (구간 평균 해석)
       pred_hi_max15 15분 최대를 직접 학습한 P90 경보 후보
       pred_hi_max15_환산 기존 시간 평균 P90의 참고 환산값
       alarm         pred_hi_max15가 학습 15분 최대 Q95 또는 지정 임계값 이상인가
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     hit = out[out.alarm]
     basis = (f'학습 구간 상위 {(1 - ALARM_Q) * 100:.0f}% · 프로젝트 기본 상대 기준'
              if thr_arg is None else '사용자 지정')
-    print(f'\n[D10 프로젝트 경보] 15분 최대 임계 {thr:.0f} ({basis})')
+    print(f'\n[피크 경보] 15분 최대 임계 {thr:.0f} ({basis})')
     print('  15분 최대 직접 P90 기준 · 포함률 미보정 · 계약전력 초과 판정과 별도')
     if len(hit):
         print(f'  위험 시각 {list(hit.hour)} · 15분 P90 후보 최대 {hit.pred_hi_max15.max():.0f} '

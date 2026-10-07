@@ -1,6 +1,6 @@
-"""6차 강화 실험 — 작업내역(조선제).txt [6-6] 의 모든 수치를 재현한다.
+"""강화 실험 — 추가 개선 수단의 측정·기각 수치를 재현한다.
 
-5차(report_gain.py)에서 "더 짜낼 수단" 7가지를 기각했다. 6차는 마감 1주 전에
+앞선 강화 단계(report_gain.py)에서 "더 짜낼 수단" 7가지를 기각했고, 이 실험은
 남은 축을 다시 전수 확인한 것이다. 결론부터: 8가지를 더 기각하고 1가지를 채택했다.
   채택   15분 최대 직접 학습 (model.MAX15_CFG)
   조건부 휴지 구간 규칙 — MAE -0.40 이지만 테스트 구간 생산계획이 완전해야 쓸 수 있다
@@ -76,9 +76,9 @@ def _table(X, runs, name, cols=None):
 
 
 def add_extra(X):
-    """6차에서 시험한 피처를 X 에 붙인다 (전부 기각됐다. 재현용).
+    """강화 실험에서 시험한 피처를 X 에 붙인다 (전부 기각됐다. 재현용).
 
-    축적군  전력은 생산에 한 박자 늦게 반응하므로([7-3]) 순간값보다 쌓인 양이
+    축적군  전력은 생산에 한 박자 늦게 반응하므로 순간값보다 쌓인 양이
             맞을 수 있다는 가정. 생산계획·기상은 예측 시점에 아는 값이라
             당일 안에서 누적해도 누수가 아니다
     N군     휴지 시간의 전력 수준. 과거전력 피처가 휴무·중단 시간을 전부 결측
@@ -216,7 +216,7 @@ def sec_align(X):
     g = s.groupby('hour').agg(생산량=('prod', 'mean'), 전력=('target', 'mean'))
     print(f'  전력 최대 시각 {int(g.전력.idxmax())}시 ({g.전력.max():.0f}) / '
           f'생산 최대 시각 {int(g.생산량.idxmax())}시 ({g.생산량.max():.0f})')
-    print('  두 최대 시각이 다른 것은 기록 오류가 아니라 "피크는 기동에서 온다"([8-1]) 자체다')
+    print('  두 최대 시각이 다른 것은 기록 오류가 아니라 "피크는 기동에서 온다" 자체다')
     t.round(4).to_csv(OUT / 'reinforce_align.csv', index=False, encoding='utf-8-sig')
     return t
 
@@ -328,7 +328,7 @@ def sec_idle(X):
         print('    %-18s 대상 %2d일  그중 누락 %2d일  정밀도 %5.1f%%'
               % (lab, rule.sum(), fp, 100 * rows[-1]['정밀도']))
     print('  → 정밀도 100% 인 기준이 없다. 예측 시점 정보로는 가를 수 없다 → 규칙 채택 불가')
-    print('    테스트 구간 생산계획이 완전하다고 확인되면 그때 ① 을 켜면 된다  [0] A-6')
+    print('    테스트 구간 생산계획이 완전하다고 확인되면 그때 ① 을 켜면 된다')
     pd.DataFrame(rows).round(4).to_csv(OUT / 'reinforce_idle_sep.csv',
                                        index=False, encoding='utf-8-sig')
 
@@ -355,7 +355,7 @@ def sec_idle(X):
 
 # ── 7. 15분 최대 ───────────────────────────────────────────────────────────
 def sec_max15(X):
-    """요금은 시간 평균이 아니라 15분 최대로 매겨진다 ([10-1] 4번).
+    """요금은 시간 평균이 아니라 15분 최대로 매겨진다.
     두 경로를 같은 기준에서 비교한다. 환산 계수는 각 폴드의 학습 구간에서만 뽑는다.
     """
     print('\n[7] 15분 최대 — 직접 학습 vs 계수 환산')
@@ -383,7 +383,7 @@ def sec_max15(X):
     print('  → 차이가 흔들림보다 크면 직접 학습을 쓴다 (model.MAX15_CFG)')
 
     # 일 최대는 경로가 다를 수 있다 — 네 가지를 함께 본다
-    print('\n  "일 최대" 는 따로 봐야 한다 (추정량은 용도별로, [6-5])')
+    print('\n  "일 최대" 는 따로 봐야 한다 (추정량은 용도별로)')
     def avg(cfg):
         ps = [rolling_eval(X, seed=s, **cfg).set_index('idx') for s in SEEDS]
         return pd.concat([x.p for x in ps], axis=1).mean(axis=1), ps[0].fold
@@ -417,7 +417,7 @@ def sec_max15(X):
 
 # ── 8. 시드 개수 ───────────────────────────────────────────────────────────
 def sec_seeds(X, k=10):
-    """시드를 몇 개 평균해야 하나 ([10-1] 5번).
+    """시드를 몇 개 평균해야 하나.
     제출물(predict_test.py)은 시드 평균을 쓰므로, 행 단위로 재야 의미가 있다.
     """
     print(f'\n[8] 시드 개수 (1 ~ {k})')
@@ -476,7 +476,7 @@ def sec_calib():
     t['포함률'] = (100 * t.포함률).round(1)
     print(t.to_string(index=False))
     print('  → 명목 90% 보다 낮으면 "90% 신뢰 상한" 이라고 쓸 수 없다.')
-    print('    실제가 높은 행에서 포함률이 크게 떨어지는 것은 [5] 의 선택 효과와 같은 현상이다')
+    print('    실제가 높은 행에서 포함률이 크게 떨어지는 것은 선택 효과와 같은 현상이다')
     t.to_csv(OUT / 'reinforce_calib.csv', index=False, encoding='utf-8-sig')
     return t
 
@@ -492,8 +492,8 @@ if __name__ == '__main__':
         raise SystemExit(f'모르는 구간: {bad}. 쓸 수 있는 것: {list(SECTIONS)}')
     X = build()
     X['ym'] = X['dt'].dt.to_period('M').astype(str)
-    print(f'6차 강화 실험 · 판단 기준 CORE(7-9월) 고유일 · 시드 {list(SEEDS)}')
+    print(f'강화 실험 · 판단 기준 CORE(7-9월) 고유일 · 시드 {list(SEEDS)}')
     print('"기준대비" 가 "흔들림" 보다 작으면 차이 없다고 본다')
     for w in want:
         SECTIONS[w](X)
-    print('\n작업내역(조선제).txt [6-6] 에 해석을 적어 뒀다')
+    print('\n해석은 보고서 제2장(분석의 한계 및 후속 과제)에 정리했다')

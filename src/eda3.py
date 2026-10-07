@@ -1,4 +1,4 @@
-"""EDA 3차: 생산량=0 구간 전력 구조, 피크와 생산/인원 관계."""
+"""EDA 보조 통계: 생산량=0 구간 전력 구조, 피크와 생산/인원 관계."""
 import pandas as pd, numpy as np
 from preprocess import load
 df = load()

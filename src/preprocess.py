@@ -38,11 +38,11 @@ def load(raw: pd.DataFrame | None = None) -> pd.DataFrame:
     df['is_stop'] = (df[['15분', '30분', '45분', '60분']] == 0).any(axis=1)
     # 휴무일: 하루 종일 기저부하만(일 최대 30 미만). 실제 경계는 26 vs 97로 넓게 벌어져 있어 임계 30은 안전
     # ※ 타깃에서 유도한 값이라 예측 시점에는 모른다. 휴무 49일은 전부 일 생산량 0이므로(포함관계 확인)
-    #   생산계획을 받으면 알 수 있다는 가정(D09). 계획이 없는 시나리오에서는 쓰면 안 됨 → features.py B군으로 분류
+    #   생산계획을 받으면 알 수 있다는 가정. 계획이 없는 시나리오에서는 쓰면 안 됨 → features.py B군으로 분류
     day_prod = df.groupby('날짜')['생산량'].transform('sum')
     day_max = df.groupby('날짜')['target'].transform('max')
     # 진짜 테스트 구간은 전력 열이 비어 있다. 그러면 day_max 가 NaN 이라 비교가 전부 False 가 되어
-    # 휴무일을 가동일로 보고 높게 예측한다(실측으로 MAE 0.8 → 19.0). 그 날만 D09 가정대로
+    # 휴무일을 가동일로 보고 높게 예측한다(실측으로 MAE 0.8 → 19.0). 그 날만 위 가정대로
     # 생산계획으로 판정한다. 전력이 있는 날의 동작은 이전과 완전히 같다
     df['is_off'] = np.where(day_max.isna(), day_prod == 0, day_max < 30)
     df['is_holiday'] = df['날짜'].astype(str).isin(

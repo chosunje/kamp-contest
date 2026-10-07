@@ -1,4 +1,4 @@
-"""D10 정책의 임계 단위, cutoff 입력 가용성 및 예측 경계 검증."""
+"""경보 정책의 임계 단위, cutoff 입력 가용성 및 예측 경계 검증."""
 import contextlib
 from copy import deepcopy
 import io

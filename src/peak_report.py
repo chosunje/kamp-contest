@@ -1,7 +1,7 @@
 """최대피크 예측·위험조건·경보를 한 장으로 — outputs/final/02_dashboard.png
 
   00_dashboard  시간별 예측 모델의 성능 (전반부)
-  01_dashboard  지난 라운드에서 무엇이 좋아졌나
+  01_dashboard  실험 단계별로 무엇이 좋아졌나
   02_dashboard  ★ 최대피크 예측 / 위험조건 / 경보 / 저감 (과제 제목의 뒤쪽 절반)
 
 이 파일은 보여 주기만 하는 것이 아니라 이번에 보강한 네 가지를 같이 계산한다.
@@ -9,12 +9,12 @@
   보강 1  위험조건 분석      과제 제목의 "최대피크 위험조건" 에 직접 답한다.
                              기온 x 생산 교차표와 단일조건별 피크일 비율을 낸다.
                              상관 한 숫자가 아니라 "어떤 날이 위험한가" 로 답한다
-  보강 2  경보 임계값 스윕    지금 임계는 "학습 구간 상위 5%" 라는 잠정값이다 (D10 미확정).
-                             임계를 바꿔 가며 정밀도·재현율을 내어 두면 D10 이 정해지는
+  보강 2  경보 임계값 스윕    기본 임계는 "학습 구간 상위 5%" 라는 상대 기준이다.
+                             임계를 바꿔 가며 정밀도·재현율을 내어 두면 계약전력이 정해지는
                              즉시 값만 바꿔 쓸 수 있다. 절대값(전력)도 같이 적는다
   보강 3  예측 시계 비교      경보를 1주 전에 낼 때와 하루 전에 낼 때가 얼마나 다른가.
                              현장은 하루 전이면 대응할 수 있으므로 둘을 같이 제시한다
-  보강 4  15분 최대 기준 경보 요금은 시간 평균이 아니라 15분 최대로 매겨진다 ([6-6] 8번).
+  보강 4  15분 최대 기준 경보 요금은 시간 평균이 아니라 15분 최대로 매겨진다.
                              그 기준으로도 경보를 내 보고 시간 평균 기준과 비교한다
 
 판단 기준은 전부 CORE(2021년 7-9월) 고유일 · 시드 3개 평균이다.
@@ -26,7 +26,7 @@
       outputs/final/peak_summary.txt         그림의 숫자를 텍스트로
       outputs/peak_risk_cross.csv            위험조건 교차표 (기온 x 생산)
       outputs/peak_risk_single.csv           단일 조건별 피크일 비율
-      outputs/peak_alarm_sweep.csv           임계값 스윕 — D10 ② 확정 시 여기서 고른다
+      outputs/peak_alarm_sweep.csv           임계값 스윕 — 임계를 바꿀 때 여기서 고른다
       outputs/peak_alarm_leadtime.csv        예측 시계·기준별 경보 성능
 """
 import sys
@@ -53,7 +53,7 @@ TXT = OUT / 'peak_summary.txt'
 
 SURF, INK, INK2, MUTED, GRID, BASEC = '#fcfcfb', '#0b0b0b', '#52514e', '#898781', '#e1e0d9', '#c3c2b7'
 PRED, PEAK, HI = '#2a78d6', '#eb6834', '#1baf7a'    # 검증된 팔레트 1·2·3 슬롯
-ALARM_Q = .95          # 지금 쓰는 잠정 임계 (D10 확정 전)
+ALARM_Q = .95          # 상대 임계: 학습 구간 상위 5%
 SWEEP = (.80, .85, .88, .90, .92, .95, .97, .98)
 
 plt.rcParams.update({
@@ -80,7 +80,7 @@ def head(ax, title, sub):
 # ── 설정 ────────────────────────────────────────────────────────────────────
 # D-7(1주 앞)은 제출물 기준이다. D-1 은 전날 실적을 쓸 수 있어 피처가 더 많다
 #   full  = lag24·전날 평균/최대 포함  → 하루 전에만 쓸 수 있다
-#   h7_lag= 그것들을 뺀 세트           → 1주 전에도 쓸 수 있다  [4] 3번
+#   h7_lag= 그것들을 뺀 세트           → 1주 전에도 쓸 수 있다
 D1_PT = dict(BASE, clone='weight', clone_w=CLONE_W, cols=FEATURES['full'], peak_w=PEAK_W,
              params={**SHALLOW, **SLOW, 'feature_fraction': .6})
 D1_HI = dict(BASE, clone='weight', clone_w=CLONE_W, cols=FEATURES['full'],
@@ -119,7 +119,7 @@ def predictions(X, refresh=False):
 
 def thresholds(X, q):
     """폴드마다 학습 구간에서만 임계값을 정한다 (평가 구간을 보고 정하면 누수).
-    시간 평균 기준과 15분 최대 기준을 함께 낸다 — D10 ① 이 어느 쪽으로 정해져도 쓰게."""
+    시간 평균 기준과 15분 최대 기준을 함께 낸다."""
     t = {}
     for m in CORE_FOLDS:
         va = X[(X.ym == m) & X.train_ok & ~X.is_clone]
@@ -133,7 +133,7 @@ def risk_conditions(X, q=ALARM_Q):
     """"어떤 날이 위험한가" 를 조건별 피크일 비율로 낸다.
 
     피크일 정의  그날 일 최대가 임계(학습 구간 상위 5% 시간 전력) 이상인 날
-    왜 상관이 아니라 비율인가  [8-1] 결과 3 에서 봤듯이 상관 한 숫자는 피어슨/스피어만
+    왜 상관이 아니라 비율인가  상관 한 숫자는 피어슨/스피어만
       선택에 따라 뒤집힌다. "기온 26도 넘고 평일이면 10일 중 7일이 위험" 같은 서술이
       보고서에도 현장에도 쓸 수 있고 재현도 쉽다.
     예측 시점에 아는 값만 쓴다 (기온=예보, 생산=계획, 달력)
@@ -203,7 +203,7 @@ def alarm_table(X, P, q, col='d7_hi', tcol=0):
 
 
 def sweep(X, P):
-    """임계값을 바꿔 가며 경보 성능을 낸다 (D10 확정 전 대비)."""
+    """임계값을 바꿔 가며 경보 성능을 낸다 (임계 민감도)."""
     return pd.DataFrame([alarm_table(X, P, q) for q in SWEEP])
 
 
@@ -239,7 +239,7 @@ def daily_max(P):
 
 
 def peak_hour_dist(P):
-    """일 최대가 난 시각의 분포 — 실제와 모델이 찍은 시각. 왜 시각을 못 맞히나 [8-3]."""
+    """일 최대가 난 시각의 분포 — 실제와 모델이 찍은 시각. 왜 시각을 못 맞히나."""
     d = P[~P.is_off.astype(bool)]
     g = d.groupby('날짜')
     act = g.apply(lambda s: s.loc[s.y.idxmax(), 'hour'], include_groups=False)
@@ -260,7 +260,7 @@ def report(X, P):
     g, dm = daily_max(P)
     pr(f'[1] 일 최대 추정 (가동일 {len(g)}일)')
     pr(dm.round(2).to_string(index=False))
-    pr('    점 예측의 최대는 구조적으로 낮다 → 일 최대·경보는 분위 0.9 로 낸다  [6-5]')
+    pr('    점 예측의 최대는 구조적으로 낮다 → 일 최대·경보는 분위 0.9 로 낸다')
     pr('')
 
     single, cross, cnt, day, base = risk_conditions(X)
@@ -276,7 +276,7 @@ def report(X, P):
             row += f'  {c} {v:5.1f}% ({int(n):2d}일)' if pd.notna(v) else f'  {c}    -     '
         pr(row)
     pr('')
-    pr('    ★ 이 표가 D16(동인=생산) vs D24(동인=기온) 논쟁의 답이다  [8-1] 결과 3')
+    pr('    ★ 이 표가 "피크의 동인은 생산인가 기온인가" 에 대한 답이다')
     pr('      생산 하위 1/3 에서는 기온이 30도를 넘어도 피크일이 0% 다 (23일 전부).')
     pr('      생산이 중위 이상일 때만 기온이 비율을 올린다 (66.7 → 83.3 → 100).')
     pr('      즉 둘 중 하나가 동인인 게 아니라 순서가 있다 —')
@@ -285,7 +285,7 @@ def report(X, P):
     pr(f'    ※ 임계가 "시간 단위 상위 {100 * (1 - ALARM_Q):.0f}%" 라 일 단위로는 피크일이'
        f' {100 * base:.0f}% 로 흔하다.')
     pr('      위험조건의 방향은 이 임계와 무관하게 유지되지만, 경보를 선택적으로 만들려면')
-    pr('      절대 임계(계약전력)가 필요하다 → D10 ②')
+    pr('      절대 임계(계약전력)가 필요하다')
     pr('')
 
     cross_long = (cross.stack().rename('피크일비율(%)').reset_index()
@@ -302,9 +302,9 @@ def report(X, P):
     pr('')
 
     sw = sweep(X, P)
-    # D10 ② 가 정해지면 이 표에서 값만 골라 ALARM_Q 를 바꾸면 된다
+    # 계약전력이 정해지면 이 표에서 값만 골라 ALARM_Q 를 바꾸면 된다
     sw.to_csv(OUT.parent / 'peak_alarm_sweep.csv', index=False, encoding='utf-8-sig')
-    pr('[4] 경보 임계값 스윕 (D-7 분위 0.9 · 일 단위) — D10 확정 시 값만 바꿔 쓰면 된다')
+    pr('[4] 경보 임계값 스윕 (D-7 분위 0.9 · 일 단위) — 임계를 바꿀 때 값만 바꿔 쓰면 된다')
     pr(sw.to_string(index=False))
     lo_rate = sw.loc[sw.임계분위 <= .90, '경보율(%)'].max()
     now_rate = sw.loc[sw.임계분위 == ALARM_Q, '경보율(%)'].iloc[0]
@@ -312,7 +312,7 @@ def report(X, P):
     pr(f'      경보율이 {lo_rate:.0f}% 다 — 이틀에 한 번 이상 경보를 내면 현장은 무시한다.')
     pr(f'      지금 쓰는 {ALARM_Q} 도 경보율 {now_rate:.0f}% 로 높은 편이다.'
        ' 임계를 학습 분위가 아니라')
-    pr('      계약전력 같은 절대값으로 바꿔야 경보가 선택적이 된다 → D10 ②  [0] B-1')
+    pr('      계약전력 같은 절대값으로 바꿔야 경보가 선택적이 된다')
     pr('')
 
     D, dd = day_table(X)
@@ -321,7 +321,7 @@ def report(X, P):
     top = a.nlargest(4).index.tolist()
     pr('[5] 일 최대가 난 시각')
     pr(f'    실제 상위 4개 시각 {sorted(top)} 에 {100 * a[top].sum() / a.sum():.1f}%')
-    pr(f'    모델이 찍은 시각 적중률 {hit:.1f}% — 경보를 "몇 시" 로 단정하면 안 된다  [8-3]')
+    pr(f'    모델이 찍은 시각 적중률 {hit:.1f}% — 경보를 "몇 시" 로 단정하면 안 된다')
     pr('')
     pr('[6] 피크전력 저감방안 (실측 근거. 모델 반사실이 아니다)')
     r8 = R.loc[R.시각 == 8, '상승폭'].iloc[0]
@@ -335,7 +335,7 @@ def report(X, P):
        f' ~ -{M.간격.max():.1f} (실측 간격)')
     pr('    생산 총량도 시간별 배분도 안 바꾸므로 생산 손실 0 · 인건비 증가 0')
     pr('    ※ 축을 섞지 말 것 — 기각된 것은 "하루 안의 배분 조정" 하나다 (48.2%).')
-    pr('      날짜 간 축은 모델이 읽지만(64.3%, p=0.044) 포화 때문에 효과가 작다  [8-7]')
+    pr('      날짜 간 축은 모델이 읽지만(64.3%, p=0.044) 포화 때문에 효과가 작다')
     return '\n'.join(L), (g, dm, single, cross, cnt, day, base, lt, sw, a, p, hit, R, M)
 
 
@@ -444,7 +444,7 @@ def draw(parts):
     ax.set_xlabel('경보 임계 전력')
     ax.set_ylabel('%')
     ax.set_ylim(0, 112)
-    head(ax, '④ 경보 임계값 — D10 이 정해지면 값만 바꾸면 된다',
+    head(ax, '④ 경보 임계값 — 계약전력이 정해지면 값만 바꾸면 된다',
          '임계를 낮추면 재현율은 100% 가 되지만 경보 발령률이 60% 를 넘어 쓸모가 없다')
     ax.legend(loc='lower left', fontsize=9)
     grid(ax, 'both')

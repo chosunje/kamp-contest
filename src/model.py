@@ -1,7 +1,7 @@
-"""예측 모델. 검증 규약은 baseline.py 와 동일하다 (D12: 시간순 롤링 폴드).
+"""예측 모델. 검증 규약은 baseline.py 와 동일하다 (시간순 롤링 폴드).
   학습 = 검증월 이전 전체 / 평가 = 고유일만 (복제일을 평가에 넣으면 점수가 부풀려진다)
-  판단은 CORE(7 to 9월) 기준으로 한다 (D22). 5 to 9월 수치도 함께 내되 결론은 CORE 로 쓴다.
-  목표선 = 작업내역 [9] 고유일 베이스라인: MAE 23.6 / RMSE 35.3 / peakMAE 35.5
+  판단은 CORE(7 to 9월) 기준으로 한다. 5 to 9월 수치도 함께 내되 결론은 CORE 로 쓴다.
+  목표선 = 고유일 베이스라인 (보고서 표 2-1): MAE 23.6 / RMSE 35.3 / peakMAE 35.5
            (baseline.py 가 BASE['train_flag'] 를 따라가므로 학습 행을 바꾸면 목표선도 바뀐다)
 
 실행: python src/model.py         →  outputs/model_results.csv       설정 비교 (본 실험표)
@@ -25,7 +25,7 @@ FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
 CORE_FOLDS = ['2021-07', '2021-08', '2021-09']
 CORE = 'CORE(7 to 9월)'
 SEEDS = (0, 1, 2)    # 같은 설정을 시드만 바꿔 여러 번 돌린다 (차이가 흔들림보다 큰지 보려고)
-CLONE_W = 0.3        # D07: 강화 점 예측 재비교 후 유지(2026-10-05). .1은 피크 MAE가 낮다
+CLONE_W = 0.3        # 강화 점 예측 재비교 후 유지. .1은 피크 MAE가 낮다
 NEEDS_FILL = {'rf'}  # RF 비교 실험의 결측 채우기 방식을 -999로 고정한다
 
 # ── 비교 실험 ──────────────────────────────────────────────────────────────
@@ -35,17 +35,17 @@ BASE = dict(cols=FEATURES['full'], model='lgbm', train_flag='train_ok_strict', c
 
 RUNS = {
     '0 기준 (lgbm·full·strict·keep)': {},
-    # 축 1. 복제일 처리 — 비교 기준은 유지. 현재 FINAL_CFG는 재비교 후 0.3 유지(D07)
+    # 축 1. 복제일 처리 — 비교 기준은 유지. FINAL_CFG는 재비교 후 0.3 유지
     '1 복제일 학습 제외':             dict(clone='drop'),
     f'2 복제일 가중치 {CLONE_W}':      dict(clone='weight'),
-    # 축 2. 학습 행 (작업내역(조선제).txt [3] 보강 1) — 생산기록 누락 의심일 15일을 뺄 것인가
+    # 축 2. 학습 행 — 생산기록 누락 의심일 15일을 뺄 것인가
     '3 누락일 포함 (train_ok)':       dict(train_flag='train_ok'),
     # 축 3. 피처 세트 — 테스트에 생산계획이 안 올 경우 대비
     '4 피처 no_plan (달력+과거전력)':  dict(cols=FEATURES['no_plan']),
     # 축 4. 모델 (과제 요건: 2종 이상 비교)
     '5 RandomForest':                 dict(model='rf'),
-    # 축 5. 예측 시계 (같은 문서 [11]) — 1주 앞 세트는 full 에서 최근 lag 4개를 뺀 것이다.
-    #        빼면 오히려 좋아진다 ([4] 3번 · CORE 9.15 → 8.05). lag24 계열이 요일 패턴을 흐린다
+    # 축 5. 예측 시계 — 1주 앞 세트는 full 에서 최근 lag 4개를 뺀 것이다.
+    #        빼면 오히려 좋아진다 (CORE 9.15 → 8.05, 보고서 표 2-5). lag24 계열이 요일 패턴을 흐린다
     '6 1주 앞 (h7_full)':             dict(cols=FEATURES['h7_full']),
     '7 1주 앞 (h7_no_plan)':          dict(cols=FEATURES['h7_no_plan']),
 
@@ -88,8 +88,8 @@ LGBM_BASE = dict(objective='l1', n_estimators=400, learning_rate=.05, num_leaves
 def make_model(name, seed=0, params=None):
     """모델 1종을 만들어 돌려준다. params 로 기본 설정을 덮어쓸 수 있다.
 
-    lgbm_q90 은 분위 0.9 를 맞추는 lgbm 이다. 팀원의 quantile_analysis.py 가 이 이름으로
-    쓰므로 유지한다. 내 쪽에서는 params 로 objective 를 직접 주기 때문에(ALARM_CFG)
+    lgbm_q90 은 분위 0.9 를 맞추는 lgbm 이다. quantile_analysis.py 가 이 이름으로
+    쓰므로 유지한다. 이 파일에서는 params 로 objective 를 직접 주기 때문에(ALARM_CFG)
     이 이름을 쓰지 않는다 — 같은 모델을 부르는 두 가지 방법인 셈이다.
     """
     p = dict(params or {})
@@ -133,9 +133,9 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
     hol_w      학습 구간 공휴일 행에 곱할 가중치 (공휴일 사례가 적어서 묻히는 문제 대응)
     seed       난수 시드. 같은 설정을 여러 시드로 돌려 "차이가 흔들림보다 큰지" 본다
     target     학습·평가에 쓸 타깃 열. 'target' 은 시간 평균, 'target_max15' 는 15분 최대다.
-               D20 A안 가정의 피크 분석을 위해 후자를 직접 학습하는 경로를 둔다 (6차 실험)
+               15분 최대 피크 분석을 위해 후자를 직접 학습하는 경로를 둔다 (강화 실험)
     decay_days 오래된 행의 가중치를 줄이는 반감기(일). None 이면 전부 같은 무게.
-               6차 실험에서 기각됐다 (반감기가 짧을수록 단조롭게 악화) — 재현용으로만 남김
+               강화 실험에서 기각됐다 (반감기가 짧을수록 단조롭게 악화) — 재현용으로만 남김
     """
     names, ws = zip(*[(s.split(':')[0], float(s.split(':')[1]) if ':' in s else 1.0)
                       for s in model.split('+')])
@@ -150,7 +150,7 @@ def rolling_eval(X, cols, model='lgbm', train_flag='train_ok_strict', clone='kee
             tr = tr[~tr.is_clone]
         if len(va) == 0 or len(tr) < 200:
             continue                                        # 6월은 고유일이 2일뿐이라 건너뛸 수 있다
-        # D10: 타깃별 학습 상위 5%를 임시 분석 기준으로 사용한다. 계약전력 기준은 미확정.
+        # 타깃별 학습 상위 5%를 피크 분석 기준으로 사용한다. 계약전력 기준은 데이터에 없다.
         thr = tr[target].quantile(.95)
         # 가중치는 곱해서 쌓는다. 전부 1.0 이면 None 으로 넘겨 기존 동작과 완전히 같게 둔다
         w = np.ones(len(tr))
@@ -198,14 +198,14 @@ def run_all(X, runs, base, seeds=SEEDS, folds=None):
     return res
 
 
-# ── 약점 공략 실험 (작업내역(조선제).txt [16] 12단계 / [17] 13단계) ──────────
+# ── 약점 공략 실험 (보고서 표 2-8) ─────────────────────────────────────────
 #   약점 A 공휴일 과대예측  공휴일 MAE 가 비공휴일의 5배
 #   약점 B 피크 과소예측    실제가 높을수록 더 낮게 본다
 # 기준은 8번 조합. 여기서 한 가지씩만 바꿔 효과를 잰다.
 BEST = dict(clone='weight', cols=FEATURES['h7_full'])
-# 14단계에서 채택. h7_full 에 lag168 결측 대응(L군)을 더한 것 ([18] 14-2)
+# 최종 채택. h7_full 에 lag168 결측 대응(L군)을 더한 것
 BEST_L = dict(clone='weight', cols=FEATURES['h7_lag'])
-# 실험으로 고른 나무 설정 (12-3). 기본값(num_leaves 31)은 이 데이터에 비해 너무 컸다
+# 실험으로 고른 나무 설정. 기본값(num_leaves 31)은 이 데이터에 비해 너무 컸다
 SHALLOW = {'num_leaves': 15, 'min_data_in_leaf': 40}
 TINY = {'num_leaves': 7, 'min_data_in_leaf': 60}
 SLOW = {'learning_rate': 0.02, 'n_estimators': 1200}
@@ -219,12 +219,12 @@ FIX = {
     '18 목적함수 l2':      dict(BEST, params={'objective': 'l2'}),
     '19 분위 0.6':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.6}),
     '20 분위 0.7':         dict(BEST, params={'objective': 'quantile', 'alpha': 0.7}),
-    # 진행 순서 1번(인수인계 [3])이 요구한 분위수 0.9 도 같이 잰다
+    # 일 최대 추정용 분위수 0.9 도 같이 잰다
     '20b 분위 0.9':        dict(BEST, params={'objective': 'quantile', 'alpha': 0.9}),
     # B-2 피크 행 가중치. 상위 5% 행을 더 무겁게 학습시킨다
     '21 피크행 가중 3배':  dict(BEST, peak_w=3.0),
     '22 피크행 가중 6배':  dict(BEST, peak_w=6.0),
-    # B-3 Ridge. 트리와 달리 학습 최대값 밖으로도 예측할 수 있다 (팀원 관찰: 피크 MAE 12.7)
+    # B-3 Ridge. 트리와 달리 학습 최대값 밖으로도 예측할 수 있다 (사전 관찰: 피크 MAE 12.7)
     '23 Ridge 단독':       dict(BEST, model='ridge'),
     '24 LGBM+Ridge 5:5':   dict(BEST, model='lgbm+ridge'),
     '25 LGBM+Ridge 7:3':   dict(BEST, model='lgbm:0.7+ridge:0.3'),
@@ -252,8 +252,8 @@ FIX = {
     '42 아주얕게+천천히':     dict(BEST, params={**TINY, **SLOW}),
     '43 얕게+천천히+피크3+ff6': dict(BEST, params={**SHALLOW, **SLOW, 'feature_fraction': 0.6},
                                     peak_w=3.0),
-    # ── 14단계: 인수인계 [3] 이 남긴 피처 두 가지 (기준은 43번 설정) ──────────
-    # 44 생산계획 창(P군) — D23 규칙을 피처로 바꾼 것. 부분가동일을 겨냥한다
+    # ── 추가 피처 두 가지 (기준은 43번 설정) ─────────────────────────────────
+    # 44 생산계획 창(P군) — 생산 종료 이후 상한 보정 규칙을 피처로 바꾼 것. 부분가동일을 겨냥한다
     # 45 lag168 결측 대응(L군) — 휴가 주에 1주 전이 통째로 비는 문제를 겨냥한다
     '44 +생산창 (P군)':    dict(BEST, cols=FEATURES['h7_win'], peak_w=3.0,
                                params={**SHALLOW, **SLOW, 'feature_fraction': 0.6}),
@@ -263,13 +263,13 @@ FIX = {
                                params={**SHALLOW, **SLOW, 'feature_fraction': 0.6}),
 }
 
-# ── 위 실험으로 고른 최종 설정 (CORE 기준으로 다시 고름, [17] 13-2) ──────────
+# ── 위 실험으로 고른 최종 설정 (CORE 기준으로 다시 고름) ────────────────────
 # ★ 32·35·36·39·43 은 서로 흔들림 안쪽이라 사실상 동률이다. 어느 조합을 고르는지는
 #   중요하지 않고, 공통 재료인 "얕은 나무 + 피크행 가중치"가 효과의 실체다.
 #   그중 세 지표가 모두 기준보다 낫고 RMSE 가 가장 낮은 43번을 대표로 쓴다.
 FINAL_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, peak_w=PEAK_W,
                  params={**SHALLOW, **SLOW, 'feature_fraction': 0.6})
-# 2026-10-05 D07 재비교: 시간 평균·15분 최대의 MAE/RMSE 기준으로 0.3 유지.
+# 복제일 가중치 재비교: 시간 평균·15분 최대의 MAE/RMSE 기준으로 0.3 유지.
 # .1의 피크 MAE 우위를 별도 기록했다. P군(h7_win/h7_plus)은 기본 설정에 넣지 않는다.
 # 33번. 피크를 우선한다면 이쪽 (peakMAE 11.23 / MAE 는 기준보다 여전히 낮다)
 ALT_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
@@ -279,8 +279,8 @@ ALT_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W, params=SHALLOW, peak_w=6.0)
 ALARM_CFG = dict(BASE, **BEST_L, clone_w=CLONE_W,
                  params={**SHALLOW, 'objective': 'quantile', 'alpha': 0.9})
 
-# ── 15분 최대 전용 (6차 실험) ───────────────────────────────────────────────
-# D20 A안 가정의 15분 최대 피크 분석을 위해 그 값을 내는 두 경로를
+# ── 15분 최대 전용 (강화 실험) ──────────────────────────────────────────────
+# 15분 최대 피크 분석을 위해 그 값을 내는 두 경로를
 # 같은 기준에서 비교했더니 직접 학습이 분명히 나았다 (CORE MAE 7.32 vs 환산 7.87,
 # 흔들림 0.11/0.23). 환산은 시각별 평균 비율을 쓰므로 그날의 사정을 반영하지 못한다.
 #   직접 학습  타깃만 target_max15 로 바꾼다. 설정은 점 예측과 같다

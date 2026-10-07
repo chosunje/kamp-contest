@@ -4,7 +4,7 @@
     python run_all.py
 
 모델 비교(model.py)는 기본 설정 24개 x 시드 3개 x 월별 폴드를 반복 학습한다.
-실행 시간은 환경에 따라 달라진다. 전체 파이프라인은 25단계다.
+실행 시간은 환경에 따라 달라진다. 전체 파이프라인은 21단계다.
 전처리·EDA만 다시 만들려면 STEPS 앞쪽 5개만 개별 실행하면 된다.
 
 이 스크립트 하나로 outputs/ 를 전부 다시 만들 수 있어야 한다. 중간 산출물을
@@ -28,7 +28,7 @@ STEPS = [
     ('예측오차 분석', 'error_analysis.py'),
     ('영향요인 분석 (SHAP)', 'shap_analysis.py'),
     ('최대피크 위험조건 분석', 'peak_driver.py'),
-    ('15분 최대 경보 검증 (D10)', 'peak_alarm_max15.py'),
+    ('15분 최대 경보 검증', 'peak_alarm_max15.py'),
     ('피크 경보 검증', 'peak_alarm.py'),
     ('분위 비교·누수 검증', 'quantile_analysis.py'),
     ('피크전력 저감방안', 'peak_reduce.py'),
@@ -38,19 +38,13 @@ STEPS = [
     ('최종 성능 한 장 요약', 'report_final.py'),
     ('최종 모델·저감 일정·HTML 화면', 'final_app.py'),
     ('최대피크 한 장 요약', 'peak_report.py'),
-    # 보고서 각 장의 표·그림 원데이터. 앞 단계들이 만든 outputs/*.csv 를 읽으므로
-    # 반드시 마지막에 둔다 (report_ch4 는 20단계 final_app 의 schedule.json 도 쓴다)
-    ('보고서 1장 표·그림 데이터', 'report_ch1.py'),
-    ('보고서 2장 표·그림 데이터', 'report_ch2.py'),
-    ('보고서 3장 표·그림 데이터', 'report_ch3.py'),
-    ('보고서 4장 표·그림 데이터', 'report_ch4.py'),
 ]
 
 # 파이프라인에 넣지 않은 것 (오래 걸리거나 일회성 실험이라 따로 돌린다)
-#   reinforce.py          6차 강화 실험               약 25분
+#   reinforce.py          추가 강화 실험              약 25분
 #   report_gain.py        개선폭 비교 (01_dashboard)   약 6분
 #   peak_schedule.py      하루 안 배분 조정 실험       약 3분
-#   operational_correction.py  D23 운영규칙 실험 (팀원)
+#   operational_correction.py  생산 종료 이후 상한 보정 실험
 #   importance.py         변수 중요도 + 피크 구간 SHAP 비교   약 3분
 #   hparam_check.py       파라미터 단일 변경 민감도           약 3분
 
