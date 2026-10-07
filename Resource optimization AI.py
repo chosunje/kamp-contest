@@ -15,7 +15,7 @@ KAMP 과제 ⑤ (제조 생산데이터 기반 전력사용량 예측 및 최대
   6 위험조건    기온 x 생산 교차표 · 조건별 피크일 비율
   7 경보        예측 시계(D-7/D-1) · 기준(시간평균/15분최대) · 임계값 스윕
   8 저감방안    기동 분산의 기회를 실측으로 · 날짜 간 생산일정 · 포화
-  9 보고        콘솔 출력 + outputs/final/dashboard.html 재생성
+  9 검증        이번 실행 값이 보고서 표와 같은지 스스로 대조 (VERIFY)
 
 ── src/ 와의 관계 ─────────────────────────────────────────────────────────
   src/ 아래 모듈들이 작업용 원본이고 이 파일은 그것을 한 벌로 묶은 실행본이다.
@@ -23,18 +23,11 @@ KAMP 과제 ⑤ (제조 생산데이터 기반 전력사용량 예측 및 최대
   문서에 적힌 값과 같은지 스스로 검증한다 (VERIFY). 어긋나면 경고를 띄운다.
 
 ── 실행 ────────────────────────────────────────────────────────────────────
-  python "Resource optimization AI.py"              돌리고 결과만 본다 (약 4분)
-  python "Resource optimization AI.py" --serve      돌린 뒤 로컬 서버로 띄운다
-  python "Resource optimization AI.py" --serve-only 안 돌리고 띄우기만 (바로)
-  python "Resource optimization AI.py" --serve --port 8080   포트 지정
+  python "Resource optimization AI.py"      전처리부터 저감까지 한 번에 (약 4분)
 
   ★ 파일명에 공백이 있으므로 따옴표를 꼭 붙일 것.
-  서버로 띄우면 주소 하나에 화면 두 개가 탭으로 붙는다.
-    근거 대시보드  왜 이 숫자를 믿는가 (모델·피크·위험조건·경보·저감·한계)
-    운영 플래너    그래서 오늘 뭘 하는가 (경보 → 작업 조건 → 추천 일정 → CSV)
-  값을 바꿔 다시 돌린 뒤에는 화면의 "새로고침" 만 누르면 된다.
-  그냥 파일을 열어도 되지만, 그때는 브라우저가 옆 파일 읽기를 막으므로
-  페이지에 박아 둔 값을 쓰고 (같은 값이다) 플래너 탭은 열리지 않는다.
+  결과는 전부 콘솔에 표로 찍힌다. 현장용 운영 화면은 이 파일이 아니라
+  run_dashboard.py 가 만든다 (outputs/final_app/index.html, 보고서 제5장).
 
 필요한 것: dataset/okm_augumented_2021.csv
 """
@@ -51,7 +44,6 @@ from sklearn.ensemble import RandomForestRegressor
 ROOT = Path(__file__).resolve().parent
 RAW = ROOT / 'dataset' / 'okm_augumented_2021.csv'
 OUT = ROOT / 'outputs' / 'final'
-TEMPLATE = OUT / 'dashboard.html'
 
 # ── 규약 ────────────────────────────────────────────────────────────────────
 FOLDS = ['2021-05', '2021-06', '2021-07', '2021-08', '2021-09']
@@ -717,335 +709,7 @@ def verify(R):
     return bad == 0
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# 10-2. 로컬 콘솔 — 근거 화면과 운영 화면을 한 주소에서
-# ════════════════════════════════════════════════════════════════════════════
-#   화면이 두 벌이다. 쓰임이 다르니 합치지 않고 탭으로 나란히 둔다.
-#     근거 대시보드  outputs/final/dashboard.html   "왜 이 숫자를 믿는가"
-#     운영 플래너    web/index.html (run_dashboard)  "그래서 오늘 뭘 하는가"
-#   전에는 포트도 명령도 따로였다. 쓰는 사람이 둘 다 외워야 했고, 심사위원에게
-#   건넬 때도 설명이 두 줄이었다. 이제 명령 하나 · 포트 하나 · 주소 하나다.
-#   팀원 코드는 고치지 않고 불러다 쓴다 (run_dashboard.recommend 를 그대로 호출).
-WEB = ROOT / 'web' / 'index.html'
-TABS = [('ev', '근거 대시보드', '/dashboard.html', '모델 성능 · 피크 예측 · 위험조건 · 경보 · 저감'),
-        ('op', '운영 플래너', '/planner/', '오늘 경보 → 작업 조건 입력 → 추천 일정 → CSV')]
-
-SHELL = """<!doctype html>
-<html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>전력 피크 관제 콘솔</title>
-<style>
-:root{
-  --ink:#141618; --ink2:#4a5157; --mute:#7c858c;
-  --bg:#f4f5f3; --card:#fffffe; --line:#dfe2dd; --rail:#e9ebe6; --a1:#2a78d6;
-  --fs:'IBM Plex Sans KR',system-ui,-apple-system,'Malgun Gothic',sans-serif;
-  --fm:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --ink:#eef0ee; --ink2:#b3bbc0; --mute:#848d94;
-  --bg:#14171a; --card:#1b1f23; --line:#2b3137; --rail:#232931; --a1:#5b9ff0;
-  color-scheme:dark}}
-*{box-sizing:border-box}
-html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--fs);
-  display:flex;flex-direction:column}
-header{flex:none;background:var(--card);border-bottom:1px solid var(--line);
-  display:flex;align-items:center;gap:16px;padding:0 16px;height:46px}
-.brand{font-size:.9rem;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
-.brand span{color:var(--mute);font-weight:400;font-size:.78rem;margin-left:7px}
-nav{display:flex;gap:2px;background:var(--rail);border-radius:9px;padding:3px}
-nav button{appearance:none;border:0;background:none;color:var(--ink2);cursor:pointer;
-  font:inherit;font-size:.84rem;padding:5px 13px;border-radius:7px;white-space:nowrap}
-nav button:hover{color:var(--ink)}
-nav button[aria-selected="true"]{background:var(--card);color:var(--ink);font-weight:600;
-  box-shadow:0 1px 2px rgba(0,0,0,.09)}
-.spacer{flex:1}
-.hint{color:var(--mute);font-size:.76rem;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;max-width:46ch}
-.act{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink2);
-  cursor:pointer;font:inherit;font-size:.78rem;padding:4px 10px;border-radius:7px;white-space:nowrap}
-.act:hover{color:var(--ink);border-color:var(--mute)}
-iframe{flex:1;width:100%;border:0;background:var(--bg)}
-@media (max-width:760px){
-  header{height:auto;flex-wrap:wrap;gap:8px;padding:8px 12px}
-  .hint{display:none} .spacer{flex:0}
-}
-</style></head><body>
-<header>
-  <div class="brand">전력 피크 관제 콘솔<span>로컬 전용 · 127.0.0.1</span></div>
-  <nav id="tabs" role="tablist"></nav>
-  <div class="spacer"></div>
-  <p class="hint" id="hint"></p>
-  <button class="act" id="reload" title="파이썬을 다시 돌린 뒤 누르면 새 값이 들어온다">새로고침</button>
-</header>
-<iframe id="view" title="화면"></iframe>
-<script>
-const TABS = __TABS__;
-const nav = document.getElementById('tabs'), view = document.getElementById('view'),
-      hint = document.getElementById('hint');
-let cur = null;
-
-function show(key, push){
-  const t = TABS.find(x => x.key === key) || TABS[0];
-  cur = t.key;
-  // 같은 탭을 다시 누르면 화면을 새로 받는다 (돌린 뒤 값 확인용)
-  view.src = t.url + (view.src.includes(t.url) ? '?t=' + Date.now() : '');
-  hint.textContent = t.note;
-  document.title = t.label + ' · 전력 피크 관제 콘솔';
-  nav.querySelectorAll('button').forEach(b =>
-    b.setAttribute('aria-selected', String(b.dataset.key === t.key)));
-  if(push && location.hash.slice(1) !== t.key) location.hash = t.key;
-  try{ localStorage.setItem('console-tab', t.key); }catch(e){}
-}
-
-TABS.forEach(t => {
-  const b = document.createElement('button');
-  b.type = 'button'; b.role = 'tab'; b.dataset.key = t.key; b.textContent = t.label;
-  b.addEventListener('click', () => show(t.key, true));
-  nav.appendChild(b);
-});
-document.getElementById('reload').addEventListener('click', () => {
-  view.src = view.src.split('?')[0] + '?t=' + Date.now();
-});
-addEventListener('hashchange', () => show(location.hash.slice(1), false));
-
-// 주소의 #탭 > 지난번에 보던 탭 > 첫 번째 탭
-let start = location.hash.slice(1);
-if(!TABS.some(t => t.key === start)){
-  try{ start = localStorage.getItem('console-tab') || ''; }catch(e){ start = ''; }
-}
-show(start, false);
-</script>
-</body></html>
-"""
-
-NO_PLANNER = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>운영 플래너를 불러오지 못했다</title><style>
-:root{--ink:#141618;--mute:#7c858c;--bg:#f4f5f3;--card:#fffffe;--line:#dfe2dd}
-@media (prefers-color-scheme:dark){:root{--ink:#eef0ee;--mute:#848d94;--bg:#14171a;
-  --card:#1b1f23;--line:#2b3137;color-scheme:dark}}
-body{margin:0;background:var(--bg);color:var(--ink);line-height:1.7;
-  font-family:'IBM Plex Sans KR',system-ui,'Malgun Gothic',sans-serif;
-  display:grid;place-items:center;min-height:100vh;padding:24px}
-.box{max-width:52ch;background:var(--card);border:1px solid var(--line);
-  border-radius:12px;padding:22px 24px}
-h1{font-size:1.05rem;margin:0 0 10px}
-p{margin:0 0 9px;font-size:.88rem}
-code{font-family:'IBM Plex Mono',Consolas,monospace;font-size:.82rem}
-.m{color:var(--mute);font-size:.8rem}
-</style></head><body><div class="box">
-<h1>운영 플래너를 불러오지 못했다</h1>
-<p>근거 대시보드는 그대로 쓸 수 있다. 플래너만 지금 못 띄운다.</p>
-<p class="m">__WHY__</p>
-<p>플래너는 <code>src/</code> 와 <code>web/index.html</code> 이 함께 있어야 돈다.
-한 파일 실행본만 떼어 내 돌리면 이 화면이 뜬다 — 분석에는 지장이 없다.</p>
-<p class="m">따로 띄우려면 <code>python run_dashboard.py --open</code></p>
-</div></body></html>
-"""
-
-
-_PLANNER = {}          # 불러온 모듈과 마지막 예측을 담아 둔다
-_PLANNER_LOCK = None   # 동시에 두 요청이 들어와도 학습을 두 번 하지 않게
-
-
-def _planner():
-    """팀원의 운영 플래너(run_dashboard.py)를 불러온다. 요청이 올 때마다 확인한다.
-
-    왜 미리 안 부르나  예측 캐시가 유효하면 즉시 뜨지만, 데이터나 src/ 가 바뀌어
-      캐시가 깨졌으면 모델을 다시 학습한다(수 분). 서버가 뜨는 것까지 그만큼
-      기다리게 할 이유가 없다. 플래너 탭을 처음 열 때만 치르게 한다.
-    왜 매번 확인하나  처음에는 한 번 불러와 메모리에 담아 뒀는데, 그러면 서버를
-      띄운 채 데이터를 바꿔도 플래너 값이 그대로였다. 서버를 껐다 켜야 반영됐다.
-      load_payload 는 원자료 해시와 src/ 지문을 먼저 비교해서, 바뀐 게 없으면
-      저장된 예측을 그대로 쓴다 (수 ms). 바뀌었을 때만 다시 학습한다.
-      그래서 매번 불러도 평소에는 공짜고, 바꾼 건 새로고침만으로 반영된다.
-    없어도 되는 의존이다  못 불러오면 근거 대시보드만 띄우고 이유를 화면에 적는다.
-    """
-    global _PLANNER_LOCK
-    if _PLANNER_LOCK is None:
-        import threading
-        _PLANNER_LOCK = threading.Lock()
-    with _PLANNER_LOCK:
-        try:
-            from argparse import Namespace
-            if 'rd' not in _PLANNER:
-                for q in (str(ROOT), str(ROOT / 'src')):
-                    if q not in sys.path:
-                        sys.path.insert(0, q)
-                import run_dashboard as rd
-                _PLANNER['rd'] = rd
-                print('  운영 플래너 예측을 준비한다 (캐시가 유효하면 바로 끝난다)...', flush=True)
-            rd = _PLANNER['rd']
-            payload = rd.load_payload(Namespace(start=None, end=None, threshold=None,
-                                                no_plan=False, rebuild=False))
-            if payload is not _PLANNER.get('payload'):
-                print(f'  운영 플래너 준비 완료 ({len(payload["forecast"]):,}행)', flush=True)
-            _PLANNER.update(payload=payload, why='')
-        except Exception as exc:              # 어떤 이유든 근거 화면은 살아 있어야 한다
-            _PLANNER.update(payload=None, why=f'{type(exc).__name__}: {exc}')
-            _PLANNER.setdefault('rd', None)
-            print(f'  운영 플래너를 불러오지 못했다 — {type(exc).__name__}: {exc}')
-            print('  근거 대시보드만 띄운다 (python run_dashboard.py 로 따로 띄울 수 있다)')
-        rd = _PLANNER['rd'] if _PLANNER.get('payload') is not None else None
-        return rd, _PLANNER.get('payload'), _PLANNER.get('why', '')
-
-
-def serve(port=8000):
-    """근거 대시보드와 운영 플래너를 한 주소에서 띄운다 (이 컴퓨터 안에서만).
-
-    왜 서버인가  파일을 그냥 열면(file://) 브라우저가 옆 파일 읽기를 막아서
-      대시보드가 "페이지에 박아 둔 값" 을 쓴다. 서버로 띄우면 dashboard_data.json
-      을 직접 읽으므로, 파이썬을 다시 돌린 뒤 새로고침만 하면 값이 바뀐다.
-    왜 한 주소인가  화면이 둘인데 포트도 명령도 따로면 쓰는 사람이 둘 다 외워야 한다.
-      탭으로 묶어 두면 "이 주소 하나" 로 끝난다.
-    주의  127.0.0.1 로만 연다. 같은 망의 다른 컴퓨터에서도 접속되지 않는다.
-    """
-    import http.server
-    import threading
-    import webbrowser
-    from urllib.parse import urlsplit
-
-    tabs = json.dumps([{'key': k, 'label': lb, 'url': u, 'note': nt}
-                       for k, lb, u, nt in TABS], ensure_ascii=False)
-    shell = SHELL.replace('__TABS__', tabs).encode('utf-8')
-
-    class H(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *a, **kw):
-            super().__init__(*a, directory=str(OUT), **kw)
-
-        # ── 보내기 ──────────────────────────────────────────────────────────
-        def _send(self, status, body, ctype):
-            self.send_response(status)
-            self.send_header('Content-Type', ctype)
-            self.send_header('Content-Length', str(len(body)))
-            self.send_header('Cache-Control', 'no-store')
-            self.send_header('X-Content-Type-Options', 'nosniff')
-            self.end_headers()
-            if self.command != 'HEAD':
-                self.wfile.write(body)
-
-        def _html(self, body, status=200):
-            self._send(status, body, 'text/html; charset=utf-8')
-
-        def _json(self, status, value):
-            self._send(status, json.dumps(value, ensure_ascii=False,
-                                          allow_nan=False).encode('utf-8'),
-                       'application/json; charset=utf-8')
-
-        # ── 받기 ────────────────────────────────────────────────────────────
-        def do_GET(self):
-            path = urlsplit(self.path).path
-            if path == '/':
-                return self._html(shell)
-            if path in ('/planner', '/planner/'):
-                rd, _, why = _planner()
-                if rd is None:
-                    return self._html(NO_PLANNER.replace('__WHY__', why).encode('utf-8'), 503)
-                return self._html(WEB.read_bytes())
-            if path == '/api/forecast':
-                rd, payload, _ = _planner()
-                if rd is None:
-                    return self._json(503, {'error': '운영 플래너를 불러오지 못했습니다.'})
-                return self._json(200, payload)
-            if path == '/favicon.ico':
-                return self._send(204, b'', 'image/x-icon')
-            return super().do_GET()        # 나머지는 outputs/final 의 정적 파일
-
-        def do_POST(self):
-            # 일정 추천은 팀원 코드(run_dashboard.recommend)를 그대로 부른다.
-            # 검사 조건도 같은 것을 쓴다 — 두 서버가 다르게 굴면 안 된다
-            if urlsplit(self.path).path != '/api/schedule':
-                return self._json(404, {'error': '요청한 기능을 찾을 수 없습니다.'})
-            rd, payload, _ = _planner()
-            if rd is None:
-                return self._json(503, {'error': '운영 플래너를 불러오지 못했습니다.'})
-            origin = self.headers.get('Origin')   # 다른 사이트가 이 API 를 부르지 못하게
-            if origin and urlsplit(origin).netloc != self.headers.get('Host'):
-                return self._json(403, {'error': '현재 화면에서 일정 추천을 요청하세요.'})
-            try:
-                if self.headers.get('Content-Type', '').split(';', 1)[0] != 'application/json':
-                    raise ValueError('일정 입력은 JSON 형식이어야 합니다.')
-                n = int(self.headers.get('Content-Length', '0'))
-                if not 0 < n <= rd.MAX_BODY:
-                    raise ValueError('일정 입력 크기는 1MB 이하여야 합니다.')
-                req = json.loads(self.rfile.read(n).decode('utf-8'),
-                                 parse_constant=rd.reject_constant)
-                return self._json(200, rd.recommend(payload, req))
-            except (ValueError, TypeError, KeyError, OverflowError) as exc:
-                return self._json(400, {'error': str(exc)})
-
-        def guess_type(self, path):
-            """charset 을 명시한다. 안 붙이면 브라우저가 인코딩을 짐작하는데
-            한국어 윈도우에서는 cp949 로 읽어서 한글이 전부 깨진다."""
-            t = super().guess_type(path)
-            if t.split(';')[0] in ('text/html', 'application/json', 'text/css',
-                                   'text/javascript', 'application/javascript'):
-                return t.split(';')[0] + '; charset=utf-8'
-            return t
-
-        def log_message(self, *a):      # 요청 로그로 콘솔을 덮지 않는다
-            pass
-
-    for p in range(port, port + 10):
-        try:
-            # 플래너가 일정을 계산하는 동안에도 다른 요청이 막히지 않게 스레드로 받는다
-            httpd = http.server.ThreadingHTTPServer(('127.0.0.1', p), H)
-            break
-        except OSError:
-            continue                    # 그 포트를 이미 누가 쓰고 있다
-    else:
-        print(f'  {port}-{port + 9} 포트가 전부 사용 중이다. 서버를 띄우지 못했다')
-        return
-    url = f'http://127.0.0.1:{p}/'
-    print(f'\n  로컬 콘솔 시작  {url}')
-    for _, label, _, note in TABS:
-        print(f'    {label}  {note}')
-    print('  브라우저가 자동으로 열린다. 끝내려면 이 창에서 Ctrl+C')
-    print('  값을 바꿔 다시 돌린 뒤에는 화면 오른쪽 위 "새로고침" 만 누르면 된다')
-    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print('\n  서버를 닫았다')
-    finally:
-        httpd.server_close()
-
-
-def write_dashboard(R):
-    say('대시보드 재생성')
-    OUT.mkdir(parents=True, exist_ok=True)
-    R['generated'] = time.strftime('%Y-%m-%d %H:%M')
-    (OUT / 'dashboard_data.json').write_text(
-        json.dumps(R, ensure_ascii=False, indent=1), encoding='utf-8')
-    print(f'  → {OUT / "dashboard_data.json"}')
-    if not TEMPLATE.exists():
-        print(f'  대시보드 틀이 없다 ({TEMPLATE.name}). 숫자만 저장하고 넘어간다')
-        return
-    import re
-    s = TEMPLATE.read_text(encoding='utf-8')
-    new = json.dumps(R, ensure_ascii=False, separators=(',', ':'))
-    s2, cnt = re.subn(r'(<script type="application/json" id="D">).*?(</script>)',
-                      lambda m: m.group(1) + new + m.group(2), s, flags=re.S)
-    if cnt != 1:
-        print('  ★ 대시보드 틀에서 데이터 블록을 찾지 못했다. 숫자만 저장했다')
-        return
-    TEMPLATE.write_text(s2, encoding='utf-8')
-    print(f'  → {TEMPLATE}  (이번 실행 값으로 갱신)')
-
-
 def main():
-    argv = sys.argv[1:]
-    port = 8000
-    if '--port' in argv:
-        port = int(argv[argv.index('--port') + 1])
-    # 분석 없이 띄우기만 — 이미 돌려 둔 값을 다시 보고 싶을 때 (바로 열린다)
-    if '--serve-only' in argv:
-        if not (OUT / 'dashboard.html').exists():
-            raise SystemExit('대시보드가 아직 없다. 먼저 한 번 돌릴 것 (--serve-only 없이)')
-        serve(port)
-        return 0
-
     if not RAW.exists():
         raise SystemExit(f'원자료가 없다: {RAW}')
     R = {}
@@ -1086,21 +750,13 @@ def main():
     alarm(X, R, P, F)
     reduction(X, R)
     ok = verify(R)
-    write_dashboard(R)
 
     print(f'\n{"=" * 74}')
     print(f' 완료 — {time.time() - t0:.0f}초')
     print(f'{"=" * 74}')
-    print('  콘솔 위쪽에 모든 수치가 있고, 같은 값이 대시보드에도 들어갔다')
-    print(f'  대시보드  {TEMPLATE}')
-    print('  해석과 근거는 작업내역(조선제).txt 의 [6] [7] [8] 에 있다')
-    if '--serve' in argv:
-        serve(port)
-    else:
-        print('\n  보는 방법 두 가지')
-        print('    로컬 콘솔    python "Resource optimization AI.py" --serve-only')
-        print('                 근거 대시보드 + 운영 플래너가 한 주소에 탭으로 뜬다')
-        print(f'    파일만 열기  ii "{TEMPLATE}"   (근거 대시보드만)')
+    print('  위 표에 이번 실행의 모든 수치가 있다')
+    print('  현장용 운영 화면은 python run_dashboard.py 로 만든다')
+    print('    만들어 둔 화면  outputs/final_app/index.html (서버 없이 열린다)')
     return 0 if ok else 1
 
 
