@@ -156,7 +156,7 @@ def risk_conditions(X, q=ALARM_Q):
     conds = [
         ('평일 (월-금)', day.주말 == 0), ('주말', day.주말 == 1),
         ('최고기온 30도 초과', day.최고기온 > 30),
-        ('최고기온 26-30도', day.최고기온.between(26, 30, inclusive='left')),
+        ('최고기온 26-30도', day.최고기온.between(26, 30, inclusive='right')),
         ('최고기온 26도 이하', day.최고기온 <= 26),
         ('일생산 상위 1/3', day.일생산 >= day.일생산.quantile(2 / 3)),
         ('일생산 하위 1/3', day.일생산 <= day.일생산.quantile(1 / 3)),

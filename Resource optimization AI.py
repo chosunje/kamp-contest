@@ -448,7 +448,7 @@ def risk_conditions(X, R):
     conds = [('일생산 상위 1/3', day.일생산 >= day.일생산.quantile(2 / 3)),
              ('생산시간 18시간 이상', day.생산시간 >= 18),
              ('평일 (월-금)', day.주말 == 0),
-             ('최고기온 26-30도', day.최고기온.between(26, 30, inclusive='left')),
+             ('최고기온 26-30도', day.최고기온.between(26, 30, inclusive='right')),
              ('최고기온 26도 이하', day.최고기온 <= 26),
              ('공휴일', day.공휴일 == 1),
              ('최고기온 30도 초과', day.최고기온 > 30),
