@@ -84,7 +84,7 @@ python run_dashboard.py --no-plan
 - `schedule.json`, `schedule.csv`, `schedule_hourly.csv`: 예시 추천과 시간별 비교.
 - `index.html`: 예측·예시 추천을 담은 오프라인 HTML. 편집 후 재계산은 로컬 서버에서 실행한다.
 
-`run_all.py`의 16번째 단계도 이 산출물을 생성하고 종료한다. 과거 분석·성능 그림을 모두 다시 만들 필요 없이 `run_dashboard.py`만 실행할 수 있다.
+`run_all.py`의 22번째 단계도 이 산출물을 생성하고 종료한다. 과거 분석·성능 그림을 모두 다시 만들 필요 없이 `run_dashboard.py`만 실행할 수 있다.
 
 ## 수행한 검증
 

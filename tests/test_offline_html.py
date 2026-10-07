@@ -6,7 +6,8 @@
 4. '추천 일정 계산' 뒤의 스케줄러가 fixtures/dashboard/README.txt 의 시나리오대로 동작하는가
 
 모델은 학습하지 않는다. 3번은 web/index.html 의 실제 JS 함수를 node 로 실행하며,
-node 가 없으면 그 테스트만 건너뛴다.
+node 가 없으면 그 테스트만 건너뛴다. outputs/final_app 이 없는 저장소(제출용 최소 구성)에서는
+1·2·4번을 건너뛴다. python run_dashboard.py --build-only 로 만든 뒤 다시 돌리면 된다.
 
 실행  python -m unittest tests.test_offline_html -v
 """
@@ -31,6 +32,8 @@ FIX = Path(__file__).resolve().parent / 'fixtures' / 'dashboard'
 DEMO_DATE = '2021-09-09'
 # run_dashboard.export_demo 가 '</head>' 앞에 넣는 데이터 스크립트
 INJECT = re.compile(r'<script>window\.DASHBOARD_DATA=.*?;</script>\n', re.S)
+HAS_APP = all((APP / name).exists() for name in ('index.html', 'forecast.json', 'demo_tasks.json'))
+NO_APP = 'outputs/final_app 이 없음 — python run_dashboard.py --build-only 뒤에 실행'
 
 
 def embedded():
@@ -49,6 +52,7 @@ def moved(result):
             for t in result['tasks'] if t['changed']}
 
 
+@unittest.skipUnless(HAS_APP, NO_APP)
 class OfflineFileTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -154,6 +158,7 @@ class UploadValidationTests(unittest.TestCase):
         self.assertEqual(alarm_column('02_임계193_절대기준.csv'), alarm_column('01_기본_7일.csv'))
 
 
+@unittest.skipUnless(HAS_APP, NO_APP)
 class ScheduleScenarioTests(unittest.TestCase):
     """fixtures/dashboard/README.txt [2] 의 시나리오 표와 1:1 로 대응한다."""
 
